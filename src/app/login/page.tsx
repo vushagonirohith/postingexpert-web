@@ -23,28 +23,41 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Send BOTH username and email to be safe (backend can pick what it needs)
+      // ✅ same endpoint, keep UI same
       const data: any = await apiFetch("/user/login", {
         method: "POST",
         body: {
           username: usernameOrEmail,
           email: usernameOrEmail,
           password,
+          rememberMe: true, // ✅ optional (matches your old working react)
         },
       });
 
       const token =
         data?.token || data?.access_token || data?.jwt || data?.data?.token;
 
+      const expiresIn =
+        data?.expiresIn || data?.expires_in || data?.data?.expires_in || 86400;
+
       if (!token) throw new Error("Token missing in login response");
 
+      // ✅ IMPORTANT: store like old frontend so guards/pages can read it
+      localStorage.setItem("token", token);
+      localStorage.setItem("username", data?.user?.username || data?.username || usernameOrEmail);
+
+      const expiryTime = Date.now() + Number(expiresIn) * 1000;
+      localStorage.setItem("tokenExpiry", expiryTime.toString());
+
+      // keep your existing auth helper too
       saveAuth({
         token,
-        username: data?.username || usernameOrEmail,
-        user_id: data?.user_id,
-        expires_in: data?.expires_in,
+        username: data?.user?.username || data?.username || usernameOrEmail,
+        user_id: data?.user_id || data?.user?.user_id,
+        expires_in: expiresIn,
       });
 
+      // ✅ go connect (do not wait for /profile)
       router.push("/connect");
     } catch (err: any) {
       setMsg(err?.message || "Login failed");
