@@ -1,11 +1,14 @@
-export function saveAuth({ token, username, user_id, expires_in }) {
-  if (token) localStorage.setItem("token", token);
+// src/lib/auth.js
 
-  // Optional fields
+const isBrowser = typeof window !== "undefined";
+
+export function saveAuth({ token, username, user_id, expires_in }) {
+  if (!isBrowser) return;
+
+  if (token) localStorage.setItem("token", token);
   if (username) localStorage.setItem("username", username);
   if (user_id) localStorage.setItem("user_id", user_id);
 
-  // expiry (optional)
   if (expires_in) {
     const expiry = Date.now() + Number(expires_in) * 1000;
     localStorage.setItem("tokenExpiry", String(expiry));
@@ -13,6 +16,8 @@ export function saveAuth({ token, username, user_id, expires_in }) {
 }
 
 export function getToken() {
+  if (!isBrowser) return null;
+
   const token = localStorage.getItem("token");
   const expiry = localStorage.getItem("tokenExpiry");
 
@@ -24,6 +29,8 @@ export function getToken() {
 }
 
 export function clearAuth() {
+  if (!isBrowser) return;
+
   localStorage.removeItem("token");
   localStorage.removeItem("tokenExpiry");
   localStorage.removeItem("username");
@@ -31,5 +38,6 @@ export function clearAuth() {
 }
 
 export function isAuthed() {
+  if (!isBrowser) return false;
   return !!getToken();
 }

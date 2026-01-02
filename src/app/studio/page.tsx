@@ -4,9 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
-import { apiFetch, API_BASE } from "src/lib/api";
-import { getToken, clearAuth } from "src/lib/auth";
-import { useRequireAuth } from "src/hooks/useRequireAuth";
+
+// ✅ use aliases (avoid src/...) + add apiUpload
+import { apiFetch, apiUpload, API_BASE } from "@/lib/api";
+import { getToken, clearAuth } from "@/lib/auth";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 
 type Platforms = { instagram: boolean; linkedin: boolean; facebook: boolean };
 
@@ -17,6 +19,10 @@ export default function StudioPage() {
   const [prompt, setPrompt] = useState("");
   const [numImages, setNumImages] = useState<string>("");
   const [contentType, setContentType] = useState<string>("");
+
+  // ✅ NEW: optional image upload
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const [platforms, setPlatforms] = useState<Platforms>({
     instagram: false,
@@ -46,6 +52,13 @@ export default function StudioPage() {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
+
+  // cleanup preview url
+  useEffect(() => {
+    return () => {
+      if (imagePreview) URL.revokeObjectURL(imagePreview);
+    };
+  }, [imagePreview]);
 
   const toggleMemeMode = () => {
     const next = !isMemeMode;
@@ -103,7 +116,8 @@ export default function StudioPage() {
           clearInterval(pollRef.current);
           pollRef.current = null;
         } else if (data.status === "failed") {
-          const errText = extractErrorFromStatus(data) || "Job failed. Please try again.";
+          const errText =
+            extractErrorFromStatus(data) || "Job failed. Please try again.";
           setIsLoading(false);
           setIsError(true);
           setResponseMessage(errText);
@@ -120,11 +134,59 @@ export default function StudioPage() {
     }, 2000);
   };
 
+  // ✅ NEW: image picker
+  const handleImagePick = (file?: File) => {
+    if (!file) return;
+
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setIsError(true);
+      setResponseMessage("Only PNG / JPG / WEBP images are allowed.");
+      return;
+    }
+    if (file.size > 6 * 1024 * 1024) {
+      setIsError(true);
+      setResponseMessage("Image too large. Max 6MB.");
+      return;
+    }
+
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const removeImage = () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImageFile(null);
+    setImagePreview(null);
+  };
+
   const enqueue = async (payload: any) => {
     const token = getToken();
     if (!token) throw new Error("Missing token. Please login again.");
 
-    // ✅ queue/enqueue REQUIRES Authorization Bearer token
+    // ✅ If image is attached -> multipart/form-data
+    if (imageFile) {
+      const fd = new FormData();
+
+      // Append payload fields (objects as JSON strings)
+      Object.entries(payload).forEach(([k, v]) => {
+        fd.append(k, typeof v === "object" ? JSON.stringify(v) : String(v));
+      });
+
+      // Append the file
+      fd.append("image", imageFile);
+
+      // ✅ Same endpoint; backend must accept multipart for image
+      const data = await apiUpload("/queue/enqueue", {
+        method: "POST",
+        formData: fd,
+        token,
+      });
+
+      return data;
+    }
+
+    // ✅ Original JSON behavior (no image)
     const data = await apiFetch("/queue/enqueue", {
       method: "POST",
       body: payload,
@@ -139,9 +201,7 @@ export default function StudioPage() {
     if (!(validateForm() || isRetry)) return;
 
     const userId =
-      localStorage.getItem("username") ||
-      localStorage.getItem("user_id") ||
-      "";
+      localStorage.getItem("username") || localStorage.getItem("user_id") || "";
 
     const username = localStorage.getItem("username") || userId || "";
 
@@ -173,6 +233,8 @@ export default function StudioPage() {
           },
           meme: isMemeMode,
           meme_mode: isMemeMode,
+          // ✅ optional hint for backend (if you want)
+          has_image: !!imageFile,
         };
 
     setLastPayload(payload);
@@ -188,7 +250,6 @@ export default function StudioPage() {
 
       pollStatus(id);
     } catch (err: any) {
-      // if token error
       const msg = err?.message || "Failed to enqueue job. Please try again.";
       if (msg.toLowerCase().includes("authorization")) {
         clearAuth();
@@ -213,6 +274,10 @@ export default function StudioPage() {
     setResult(null);
     setJobStatus(null);
     setJobId(null);
+
+    // ✅ reset image
+    removeImage();
+
     if (pollRef.current) clearInterval(pollRef.current);
   };
 
@@ -224,7 +289,8 @@ export default function StudioPage() {
     return jobStatus || "—";
   }, [jobStatus]);
 
-  const isBusy = isLoading || jobStatus === "queued" || jobStatus === "in_progress";
+  const isBusy =
+    isLoading || jobStatus === "queued" || jobStatus === "in_progress";
 
   // auth gate
   if (!ready) return null;
@@ -241,7 +307,8 @@ export default function StudioPage() {
                 AI Content Studio
               </h1>
               <p className="mt-4 text-muted-foreground">
-                Generate content + visuals, queue jobs, and auto-post to platforms.
+                Generate content + visuals, queue jobs, and auto-post to
+                platforms.
               </p>
               <p className="mt-2 text-xs text-muted-foreground">
                 Backend: {API_BASE}
@@ -309,13 +376,72 @@ export default function StudioPage() {
 
               <div className="mt-6 space-y-4">
                 <div>
-                  <label className="text-xs text-muted-foreground">Marketing Theme</label>
-                  <input
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
-                    placeholder="e.g., Promote eco-friendly products"
-                  />
+                  <label className="text-xs text-muted-foreground">
+                    Marketing Theme
+                  </label>
+
+                  {/* ✅ NEW: plus icon + prompt input (same look as your UI) */}
+                  <div className="mt-2 flex items-end gap-3">
+                    <label
+                      className={[
+                        "flex h-11 w-11 cursor-pointer items-center justify-center rounded-2xl border border-border",
+                        "bg-background hover:bg-muted transition",
+                        isBusy ? "opacity-60 cursor-not-allowed" : "",
+                      ].join(" ")}
+                      title="Attach image (optional)"
+                    >
+                      +
+                      <input
+                        type="file"
+                        hidden
+                        disabled={isBusy}
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={(e) => handleImagePick(e.target.files?.[0])}
+                      />
+                    </label>
+
+                    <input
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      className="flex-1 rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
+                      placeholder="e.g., Promote eco-friendly products"
+                      disabled={isBusy}
+                    />
+                  </div>
+
+                  {/* ✅ NEW: optional image preview */}
+                  {imagePreview && (
+                    <div className="mt-3 flex items-center justify-between gap-4 rounded-2xl border border-border bg-background p-4">
+                      <div className="flex items-center gap-4">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={imagePreview}
+                          alt="Attached"
+                          className="h-12 w-12 rounded-xl border border-border object-cover bg-card"
+                        />
+                        <div>
+                          <p className="text-sm font-medium">
+                            {imageFile?.name || "Attached image"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {imageFile
+                              ? `${(imageFile.size / 1024).toFixed(1)} KB`
+                              : ""}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={removeImage}
+                        disabled={isBusy}
+                        className="rounded-full border border-border bg-card px-3 py-2 text-sm hover:bg-muted disabled:opacity-60"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+
                   {errors.prompt && (
                     <p className="mt-2 text-xs text-red-500">{errors.prompt}</p>
                   )}
@@ -323,32 +449,44 @@ export default function StudioPage() {
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="text-xs text-muted-foreground">Number of Images</label>
+                    <label className="text-xs text-muted-foreground">
+                      Number of Images
+                    </label>
                     <select
                       value={numImages}
                       onChange={(e) => setNumImages(e.target.value)}
                       className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
+                      disabled={isBusy}
                     >
-                      <option value="" disabled>Choose number</option>
-                      {[1,2,3,4,5].map((n) => (
+                      <option value="" disabled>
+                        Choose number
+                      </option>
+                      {[1, 2, 3, 4, 5].map((n) => (
                         <option key={n} value={String(n)}>
                           {n} Image{n > 1 ? "s" : ""}
                         </option>
                       ))}
                     </select>
                     {errors.numImages && (
-                      <p className="mt-2 text-xs text-red-500">{errors.numImages}</p>
+                      <p className="mt-2 text-xs text-red-500">
+                        {errors.numImages}
+                      </p>
                     )}
                   </div>
 
                   <div>
-                    <label className="text-xs text-muted-foreground">Content Type</label>
+                    <label className="text-xs text-muted-foreground">
+                      Content Type
+                    </label>
                     <select
                       value={contentType}
                       onChange={(e) => setContentType(e.target.value)}
                       className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
+                      disabled={isBusy}
                     >
-                      <option value="" disabled>Choose style</option>
+                      <option value="" disabled>
+                        Choose style
+                      </option>
                       {[
                         { value: "Informative", label: "📚 Informative" },
                         { value: "Inspirational", label: "💫 Inspirational" },
@@ -362,18 +500,23 @@ export default function StudioPage() {
                       ))}
                     </select>
                     {errors.contentType && (
-                      <p className="mt-2 text-xs text-red-500">{errors.contentType}</p>
+                      <p className="mt-2 text-xs text-red-500">
+                        {errors.contentType}
+                      </p>
                     )}
                   </div>
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between">
-                    <label className="text-xs text-muted-foreground">Target Platforms</label>
+                    <label className="text-xs text-muted-foreground">
+                      Target Platforms
+                    </label>
                     <button
                       type="button"
                       onClick={handleSelectAll}
                       className="text-xs text-primary underline underline-offset-4"
+                      disabled={isBusy}
                     >
                       Select all
                     </button>
@@ -391,11 +534,13 @@ export default function StudioPage() {
                           key={p.key}
                           type="button"
                           onClick={() => handlePlatformChange(p.key, !active)}
+                          disabled={isBusy}
                           className={[
                             "rounded-2xl border px-4 py-3 text-left text-sm transition",
                             active
                               ? "border-primary/40 bg-primary/10"
                               : "border-border bg-background hover:bg-muted",
+                            isBusy ? "opacity-60 cursor-not-allowed" : "",
                           ].join(" ")}
                         >
                           {p.label}
@@ -405,7 +550,9 @@ export default function StudioPage() {
                   </div>
 
                   {errors.platforms && (
-                    <p className="mt-2 text-xs text-red-500">{errors.platforms}</p>
+                    <p className="mt-2 text-xs text-red-500">
+                      {errors.platforms}
+                    </p>
                   )}
                 </div>
 
@@ -413,7 +560,9 @@ export default function StudioPage() {
                   <div
                     className={[
                       "rounded-2xl border p-4 text-sm",
-                      isError ? "border-red-500/40 bg-red-500/10" : "border-emerald-500/40 bg-emerald-500/10",
+                      isError
+                        ? "border-red-500/40 bg-red-500/10"
+                        : "border-emerald-500/40 bg-emerald-500/10",
                     ].join(" ")}
                   >
                     <p className="font-medium">
@@ -426,7 +575,7 @@ export default function StudioPage() {
                         type="button"
                         onClick={(e) => handleSubmit(e as any, true)}
                         disabled={isLoading}
-                        className="mt-3 rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:opacity-90"
+                        className="mt-3 rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
                       >
                         Retry
                       </button>
@@ -452,7 +601,7 @@ export default function StudioPage() {
                     type="button"
                     onClick={handleReset}
                     disabled={isLoading}
-                    className="rounded-full border border-border bg-card px-5 py-3 text-sm font-medium hover:bg-muted"
+                    className="rounded-full border border-border bg-card px-5 py-3 text-sm font-medium hover:bg-muted disabled:opacity-60"
                   >
                     Reset
                   </button>
@@ -469,7 +618,8 @@ export default function StudioPage() {
                       <span className="font-medium">{statusLabel}</span>
                     </div>
                     <p className="mt-3 text-xs text-muted-foreground">
-                      Tip: You’ll also receive updates via email (as per backend flow).
+                      Tip: You’ll also receive updates via email (as per backend
+                      flow).
                     </p>
                   </div>
                 )}
