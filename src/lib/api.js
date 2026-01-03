@@ -1,20 +1,28 @@
 // src/lib/api.js
 
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://13.233.45.167:5000";
+// ✅ Use API Gateway (Lambda) as the default base so it can start EC2 when stopped
+const API_BASE =
+  (process.env.NEXT_PUBLIC_GATEWAY_BASE_URL ||
+    process.env.NEXT_PUBLIC_API_BASE_URL ||
+    process.env.NEXT_PUBLIC_LAMBDA_URL ||
+    "https://4fqbpp1yya.execute-api.ap-south-1.amazonaws.com/prod"
+  ).replace(/\/$/, "");
 
 /**
- * ✅ DEFAULT JSON API (unchanged)
- * Used everywhere in your app
+ * ✅ DEFAULT JSON API
  */
 export async function apiFetch(path, { method = "GET", body, token } = {}) {
   const headers = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  const url = `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
+  console.log(`🔵 API Request: ${method} ${url}`);
+
+  const res = await fetch(url, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    cache: "no-store",
   });
 
   const text = await res.text();
@@ -27,29 +35,30 @@ export async function apiFetch(path, { method = "GET", body, token } = {}) {
   }
 
   if (!res.ok) {
-    const msg =
-      data?.error || data?.message || `Request failed (${res.status})`;
+    const msg = data?.error || data?.message || `Request failed (${res.status})`;
+    console.error(`❌ API Error: ${msg}`, data);
     throw new Error(msg);
   }
 
+  console.log(`✅ API Success: ${res.status}`);
   return data;
 }
 
 /**
- * ✅ MULTIPART API (ONLY when image/file is attached)
- * Does NOT affect existing APIs
+ * ✅ MULTIPART API
  */
-export async function apiUpload(
-  path,
-  { method = "POST", formData, token } = {}
-) {
+export async function apiUpload(path, { method = "POST", formData, token } = {}) {
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  const url = `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
+  console.log(`🔵 Upload Request: ${method} ${url}`);
+
+  const res = await fetch(url, {
     method,
-    headers, // ❗ DO NOT set Content-Type (browser sets boundary)
+    headers, // browser sets boundary
     body: formData,
+    cache: "no-store",
   });
 
   const text = await res.text();
@@ -62,10 +71,13 @@ export async function apiUpload(
   }
 
   if (!res.ok) {
-    const msg =
-      data?.error || data?.message || `Request failed (${res.status})`;
+    const msg = data?.error || data?.message || `Request failed (${res.status})`;
+    console.error(`❌ Upload Error: ${msg}`, data);
     throw new Error(msg);
   }
 
+  console.log(`✅ Upload Success: ${res.status}`);
   return data;
 }
+
+export { API_BASE };

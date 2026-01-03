@@ -1,36 +1,67 @@
 "use client";
 
-import { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
-
-import { apiFetch } from "@/lib/api";
 import { saveAuth } from "@/lib/auth";
+import { apiFetch, API_BASE } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
 
   const [usernameOrEmail, setUsernameOrEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
 
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("");
   const [msg, setMsg] = useState<string>("");
+
+  // ✅ Warmup to start EC2 early (requires Lambda route /warmup)
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        console.log("🔥 Warmup via API_BASE:", API_BASE);
+        setLoading(true);
+        setLoadingMessage("Starting server...");
+
+        await apiFetch("/warmup", { method: "GET" });
+
+        if (!cancelled) {
+          setLoading(false);
+          setLoadingMessage("");
+        }
+      } catch (e) {
+        console.warn("⚠️ Warmup failed (safe):", e);
+        if (!cancelled) {
+          setLoading(false);
+          setLoadingMessage("");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg("");
     setLoading(true);
+    setLoadingMessage("Connecting to server...");
 
     try {
-      // ✅ same endpoint, keep UI same
+      // ✅ IMPORTANT: send same payload as your old React backend expects
       const data: any = await apiFetch("/user/login", {
         method: "POST",
         body: {
           username: usernameOrEmail,
-          email: usernameOrEmail,
           password,
-          rememberMe: true, // ✅ optional (matches your old working react)
+          rememberMe,
         },
       });
 
@@ -40,31 +71,71 @@ export default function LoginPage() {
       const expiresIn =
         data?.expiresIn || data?.expires_in || data?.data?.expires_in || 86400;
 
-      if (!token) throw new Error("Token missing in login response");
+      const user = data?.user || {};
+      const username = user?.username || data?.username || usernameOrEmail;
+      const userId = user?.user_id || data?.user_id || data?.user?.id;
 
-      // ✅ IMPORTANT: store like old frontend so guards/pages can read it
+      if (!token) throw new Error("Authentication failed - no token received");
+
+      // ✅ Store auth
       localStorage.setItem("token", token);
-      localStorage.setItem("username", data?.user?.username || data?.username || usernameOrEmail);
+      localStorage.setItem("username", username);
+      localStorage.setItem("tokenExpiry", String(Date.now() + Number(expiresIn) * 1000));
 
-      const expiryTime = Date.now() + Number(expiresIn) * 1000;
-      localStorage.setItem("tokenExpiry", expiryTime.toString());
-
-      // keep your existing auth helper too
       saveAuth({
         token,
-        username: data?.user?.username || data?.username || usernameOrEmail,
-        user_id: data?.user_id || data?.user?.user_id,
+        username,
+        user_id: userId,
         expires_in: expiresIn,
       });
 
-      // ✅ go connect (do not wait for /profile)
-      router.push("/connect");
+      // ✅ Remember me (same as React)
+      if (rememberMe) {
+        localStorage.setItem("rememberedUsername", usernameOrEmail);
+        localStorage.setItem("rememberMe", "true");
+      } else {
+        localStorage.removeItem("rememberedUsername");
+        localStorage.removeItem("rememberMe");
+      }
+
+      setLoadingMessage("Success! Redirecting...");
+      setTimeout(() => router.push("/connect"), 500);
     } catch (err: any) {
-      setMsg(err?.message || "Login failed");
+      console.error("❌ Login error:", err);
+
+      const m = String(err?.message || "");
+      if (m.includes("504") || m.toLowerCase().includes("timeout")) {
+        setMsg("Server is starting up. Please wait 30 seconds and try again.");
+      } else if (m.includes("Failed to fetch")) {
+        setMsg("Cannot connect to server. Please check your internet connection.");
+      } else {
+        setMsg(err?.message || "Login failed. Please try again.");
+      }
     } finally {
       setLoading(false);
+      setLoadingMessage("");
     }
   };
+
+  // ✅ Auto-fill remembered username + auto redirect if already logged in
+  useEffect(() => {
+    try {
+      const rememberedUsername = localStorage.getItem("rememberedUsername");
+      const rememberedRememberMe = localStorage.getItem("rememberMe") === "true";
+      if (rememberedUsername && rememberedRememberMe) {
+        setUsernameOrEmail(rememberedUsername);
+        setRememberMe(true);
+      }
+
+      const token = localStorage.getItem("token");
+      const tokenExpiry = localStorage.getItem("tokenExpiry");
+      if (token && tokenExpiry && Number(tokenExpiry) > Date.now()) {
+        router.replace("/connect");
+      }
+    } catch {
+      // ignore
+    }
+  }, [router]);
 
   return (
     <>
@@ -101,6 +172,36 @@ export default function LoginPage() {
                   </li>
                 </ul>
               </div>
+
+              {loading && loadingMessage && (
+                <div className="mt-6 rounded-2xl border border-primary/30 bg-primary/5 p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+                    <p className="text-sm text-foreground">{loadingMessage}</p>
+                  </div>
+                  {(loadingMessage.includes("Starting") ||
+                    loadingMessage.includes("Connecting")) && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      First login may take 30–60 seconds while the server starts
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* CTA to register */}
+              <div className="mt-8 rounded-2xl border border-border bg-card p-6 shadow-sm">
+                <p className="text-sm font-medium text-foreground">New here?</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Create your account to start automating your posting.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => router.push("/register")}
+                  className="mt-4 inline-flex rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90"
+                >
+                  Create your account
+                </button>
+              </div>
             </div>
 
             {/* Right (form) */}
@@ -116,14 +217,15 @@ export default function LoginPage() {
               <div className="mt-6 space-y-4">
                 <div>
                   <label className="text-xs text-muted-foreground">
-                    Username / Email
+                    Username
                   </label>
                   <input
                     value={usernameOrEmail}
                     onChange={(e) => setUsernameOrEmail(e.target.value)}
                     className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
-                    placeholder="you@company.com"
+                    placeholder="username"
                     autoComplete="username"
+                    disabled={loading}
                     required
                   />
                 </div>
@@ -137,9 +239,21 @@ export default function LoginPage() {
                     className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
                     placeholder="••••••••"
                     autoComplete="current-password"
+                    disabled={loading}
                     required
                   />
                 </div>
+
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    disabled={loading}
+                    className="h-4 w-4"
+                  />
+                  Remember me
+                </label>
 
                 {msg ? (
                   <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -156,7 +270,7 @@ export default function LoginPage() {
                       : "bg-primary text-primary-foreground hover:opacity-90",
                   ].join(" ")}
                 >
-                  {loading ? "Signing in..." : "Continue"}
+                  {loading ? loadingMessage || "Signing in..." : "Continue"}
                 </button>
 
                 <p className="text-center text-xs text-muted-foreground">

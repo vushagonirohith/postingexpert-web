@@ -1,12 +1,15 @@
+import { isAuthed } from "@/lib/auth";
+
 export function useAuth() {
-  // UI placeholder
-  const isAuthenticated = true;
+  const isAuthenticated = typeof window !== "undefined" ? isAuthed() : false;
 
   return {
     isAuthenticated,
-    user: {
-      name: "Aman",
-      role: "admin",
-    },
+    user: isAuthenticated
+      ? {
+          name: localStorage.getItem("username") || "User",
+          role: "user",
+        }
+      : null,
   };
 }

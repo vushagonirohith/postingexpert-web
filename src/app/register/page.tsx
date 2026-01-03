@@ -7,6 +7,9 @@ import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
 import { saveAuth } from "@/lib/auth";
 
+// ✅ CHANGED: use your shared api helper (env-based, starts EC2 via gateway)
+import { apiFetch, API_BASE } from "@/lib/api";
+
 // ---- constants ----
 const INDUSTRIES = [
   "EdTech",
@@ -69,46 +72,8 @@ function usernameLooksValid(u: string) {
   return /^[a-zA-Z0-9_]{3,}$/.test(u.trim());
 }
 
-// ---- API helper (no dependency on lib/api.js) ----
-const FALLBACK_PROD =
-  "https://4fqbpp1yya.execute-api.ap-south-1.amazonaws.com/prod";
-
-async function postJson(path: string, body: any, token?: string): Promise<any> {
-  const base =
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    process.env.NEXT_PUBLIC_API_BASE ||
-    FALLBACK_PROD;
-
-  const url = `${String(base).replace(/\/$/, "")}${
-    path.startsWith("/") ? path : `/${path}`
-  }`;
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
-
-  const text = await res.text();
-  let data: any = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = { raw: text };
-  }
-
-  if (!res.ok) {
-    throw new Error(
-      data?.error || data?.message || `Request failed (${res.status})`
-    );
-  }
-
-  return data;
-}
+// ❌ REMOVED: FALLBACK_PROD + postJson helper
+// ✅ Now everything uses apiFetch() from src/lib/api.js (env-based)
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -132,6 +97,18 @@ export default function RegisterPage() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
   }, [step]);
+
+  // ✅ ADDED: warmup to start EC2 via API Gateway/Lambda (safe if endpoint doesn't exist)
+  useEffect(() => {
+    (async () => {
+      try {
+        console.log("🔥 Register warmup via API_BASE:", API_BASE);
+        await apiFetch("/warmup", { method: "GET" });
+      } catch (e) {
+        console.warn("⚠️ Register warmup failed (safe):", e);
+      }
+    })();
+  }, []);
 
   // ---- form state ----
   const [form, setForm] = useState({
@@ -304,7 +281,11 @@ export default function RegisterPage() {
         confirmPassword: form.confirmPassword,
       };
 
-      const reg = await postJson("/user/register", registerPayload);
+      // ✅ CHANGED: postJson -> apiFetch
+      const reg: any = await apiFetch("/user/register", {
+        method: "POST",
+        body: registerPayload,
+      });
 
       const token =
         reg?.token || reg?.access_token || reg?.jwt || reg?.data?.token;
@@ -351,15 +332,18 @@ export default function RegisterPage() {
 
       const surveyPayload = {
         surveyData: {
-          userId: form.username.trim(),        // backend uses this as partition key
-          businessType: form.industry,         // backend stores as business_type
+          userId: form.username.trim(), // backend uses this as partition key
+          businessType: form.industry, // backend stores as business_type
           answers,
           timestamp: new Date().toISOString(),
         },
       };
 
-      // 🔥 This triggers your existing "surveyData" flow and updates DynamoDB + uploads logo to S3
-      await postJson("/user/register", surveyPayload);
+      // ✅ CHANGED: postJson -> apiFetch
+      await apiFetch("/user/register", {
+        method: "POST",
+        body: surveyPayload,
+      });
 
       // local storage convenience
       localStorage.setItem("brand_name", form.brandName.trim());
