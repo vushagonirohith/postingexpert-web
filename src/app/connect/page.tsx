@@ -1,4 +1,4 @@
-//src/app/connect/page.tsx
+// src/app/connect/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -34,6 +34,7 @@ function safeJsonParse(s: string) {
 function normalizeProfile(raw: any): Profile {
   let data: any = raw;
 
+  // backend may wrap response like: { body: "..." }
   if (data?.body && typeof data.body === "string") {
     const parsed = safeJsonParse(data.body);
     if (parsed) data = parsed;
@@ -84,42 +85,31 @@ export default function ConnectPage() {
     const load = async () => {
       setLoading(true);
 
-      const endpoints = ["/user/get_profile", "/user/profile"];
+      try {
+        // ✅ ONLY valid endpoint in your api-mapping.json
+        const data = await apiFetch("/user/profile", { token });
+        setProfile(normalizeProfile(data));
+      } catch (e: any) {
+        const msg = e?.message || "";
 
-      for (const ep of endpoints) {
-        try {
-          const data = await apiFetch(ep, { token });
-          const normalized = normalizeProfile(data);
-          setProfile(normalized);
-          setLoading(false);
+        if (isAuthErrorMessage(msg)) {
+          clearAuth();
+          router.replace("/login");
           return;
-        } catch (e: any) {
-          const msg = e?.message || "";
-
-          if (msg.includes("404") || msg.toLowerCase().includes("not found")) {
-            continue;
-          }
-
-          if (isAuthErrorMessage(msg)) {
-            clearAuth();
-            router.replace("/login");
-            return;
-          }
-
-          break;
         }
-      }
 
-      // minimal fallback
-      setProfile({
-        username: localStorage.getItem("username") || "User",
-        email: "",
-        business_type: "Not specified",
-        scheduled_time: "Not set",
-        posts_created: 0,
-        connected_accounts: 0,
-      });
-      setLoading(false);
+        // fallback (still let user see connect page)
+        setProfile({
+          username: localStorage.getItem("username") || "User",
+          email: "",
+          business_type: "Not specified",
+          scheduled_time: "Not set",
+          posts_created: 0,
+          connected_accounts: 0,
+        });
+      } finally {
+        setLoading(false);
+      }
     };
 
     load();
@@ -202,12 +192,14 @@ export default function ConnectPage() {
 
               <div className="mt-3 rounded-2xl border border-border bg-background p-4">
                 <p className="text-xs text-muted-foreground">Logo</p>
-                <p className="mt-1 text-sm font-medium">Upload later (we’ll guide you).</p>
+                <p className="mt-1 text-sm font-medium">
+                  Upload later (we’ll guide you).
+                </p>
               </div>
             </div>
           </div>
 
-          {/* ✅ This section now includes the REAL LinkedIn connect button */}
+          {/* Connect buttons */}
           <ConnectClient profile={profile} />
         </div>
 

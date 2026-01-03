@@ -1,25 +1,11 @@
 // src/app/register/page.tsx
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
 import { saveAuth } from "@/lib/auth";
-import { useEffect, useRef } from "react";
-
-
-/**
- * ✅ Wizard-style registration (Next/Prev + slide)
- * ✅ Collects ALL details during registration (in steps)
- * ✅ Calls:
- *   1) POST /user/register  (creates account, returns token)
- *   2) POST /user/onboarding (stores brand/survey data)  [recommended]
- *
- * IMPORTANT:
- * - This file does NOT depend on src/lib/api.js (so even if env name is wrong, this still works).
- * - It uses NEXT_PUBLIC_API_BASE_URL if present, else falls back to your AWS API Gateway prod URL.
- */
 
 // ---- constants ----
 const INDUSTRIES = [
@@ -127,8 +113,6 @@ async function postJson(path: string, body: any, token?: string): Promise<any> {
 export default function RegisterPage() {
   const router = useRouter();
 
-
-
   // ---- wizard steps ----
   const STEPS = useMemo(
     () =>
@@ -143,15 +127,13 @@ export default function RegisterPage() {
   );
 
   const [step, setStep] = useState(0);
-
-    const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
   }, [step]);
 
-
-  // ---- form state (includes old React Register + Survey) ----
+  // ---- form state ----
   const [form, setForm] = useState({
     // old register
     fullName: "",
@@ -178,7 +160,7 @@ export default function RegisterPage() {
 
     // logo
     logoFile: null as File | null,
-    logoPreview: "" as string, // base64 preview
+    logoPreview: "" as string, // base64 data-url
   });
 
   const [loading, setLoading] = useState(false);
@@ -287,7 +269,8 @@ export default function RegisterPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // ---- submit ----
+  // ---- ✅ SUBMIT (FIXED for your current backend) ----
+  // Your backend saves survey inside /user/register when payload has surveyData.
   const onSubmitAll = async () => {
     if (loading) return;
 
@@ -312,7 +295,7 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      // 1) REGISTER (old React backend contract)
+      // 1) REGISTER user (normal register)
       const registerPayload = {
         name: form.fullName.trim(),
         email: form.email.toLowerCase().trim(),
@@ -332,43 +315,53 @@ export default function RegisterPage() {
       if (token) {
         saveAuth({
           token,
-          username: reg?.username || form.username.trim(),
+          username: reg?.user?.username || reg?.username || form.username.trim(),
           user_id: reg?.user_id,
-          expires_in: reg?.expires_in,
+          expires_in: reg?.expires_in || reg?.expiresIn,
         });
       }
 
-      // 2) ONBOARDING
+      // 2) SAVE SURVEY / ONBOARDING DATA using SAME endpoint (/user/register)
+      // ✅ Must match your backend contract exactly: { surveyData: { userId, businessType, answers, timestamp } }
       const colors = form.colors.slice(0, form.numColors);
 
-      const onboardingPayload = {
-        userId: form.username.trim(),
+      const answers: Record<string, any> = {
+        // ✅ keep the keys your get_profile reads
+        post_schedule_time: form.postScheduleTime,
+        color_theme: colors,
+
+        // ✅ other useful fields (safe to store)
         brand_name: form.brandName.trim(),
-        business_type: form.industry,
         tone: form.tone,
         goals: form.goals,
         ai_images: form.aiImages,
         frequency: form.frequency,
-        post_schedule_time: form.postScheduleTime,
         contact_details: form.contactDetails,
-        color_theme: colors,
+
+        // ✅ logo in the exact structure upload_logo_to_s3 expects
         business_logo: form.logoFile
           ? {
               fileName: form.logoFile.name,
               fileType: form.logoFile.type,
               fileSize: form.logoFile.size,
-              data: form.logoPreview,
+              data: form.logoPreview, // data-url (your backend already strips prefix)
             }
           : null,
-        timestamp: new Date().toISOString(),
       };
 
-      try {
-        await postJson("/user/onboarding", onboardingPayload, token);
-      } catch (e: any) {
-        console.warn("Onboarding save failed:", e?.message);
-      }
+      const surveyPayload = {
+        surveyData: {
+          userId: form.username.trim(),        // backend uses this as partition key
+          businessType: form.industry,         // backend stores as business_type
+          answers,
+          timestamp: new Date().toISOString(),
+        },
+      };
 
+      // 🔥 This triggers your existing "surveyData" flow and updates DynamoDB + uploads logo to S3
+      await postJson("/user/register", surveyPayload);
+
+      // local storage convenience
       localStorage.setItem("brand_name", form.brandName.trim());
       localStorage.setItem("business_type", form.industry);
 
@@ -529,9 +522,7 @@ export default function RegisterPage() {
               ) : null}
 
               {/* slider */}
-             
-<div ref={scrollRef} className="mt-6 flex-1 overflow-y-auto">
-
+              <div ref={scrollRef} className="mt-6 flex-1 overflow-y-auto">
                 <div className="relative">
                   <div className="flex" style={slideStyle}>
                     {/* STEP 1 */}
@@ -736,8 +727,7 @@ export default function RegisterPage() {
                           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                             {GOALS.map((g) => {
                               const active = form.goals.includes(g);
-                              const disabled =
-                                !active && form.goals.length >= 3;
+                              const disabled = !active && form.goals.length >= 3;
                               return (
                                 <button
                                   key={g}
@@ -749,9 +739,7 @@ export default function RegisterPage() {
                                     active
                                       ? "border-primary/40 bg-primary/10"
                                       : "border-border bg-background hover:bg-muted",
-                                    disabled
-                                      ? "cursor-not-allowed opacity-50"
-                                      : "",
+                                    disabled ? "cursor-not-allowed opacity-50" : "",
                                   ].join(" ")}
                                 >
                                   {g}
@@ -771,8 +759,7 @@ export default function RegisterPage() {
                                 AI-generated images
                               </p>
                               <p className="mt-1 text-xs text-muted-foreground">
-                                If enabled, PostingExpert generates on-brand
-                                visuals automatically.
+                                If enabled, PostingExpert generates on-brand visuals automatically.
                               </p>
                             </div>
 
@@ -805,10 +792,7 @@ export default function RegisterPage() {
                                   key={f.value}
                                   type="button"
                                   onClick={() =>
-                                    setForm((p) => ({
-                                      ...p,
-                                      frequency: f.value,
-                                    }))
+                                    setForm((p) => ({ ...p, frequency: f.value }))
                                   }
                                   className={[
                                     "rounded-2xl border px-3 py-3 text-center text-sm transition",
@@ -832,16 +816,12 @@ export default function RegisterPage() {
                             type="time"
                             value={form.postScheduleTime}
                             onChange={(e) =>
-                              setForm((p) => ({
-                                ...p,
-                                postScheduleTime: e.target.value,
-                              }))
+                              setForm((p) => ({ ...p, postScheduleTime: e.target.value }))
                             }
                             className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
                           />
                           <p className="mt-2 text-xs text-muted-foreground">
-                            We’ll schedule posts around this time (you can
-                            change later).
+                            We’ll schedule posts around this time (you can change later).
                           </p>
                         </div>
                       </div>
@@ -857,15 +837,10 @@ export default function RegisterPage() {
                           <textarea
                             value={form.contactDetails}
                             onChange={(e) =>
-                              setForm((p) => ({
-                                ...p,
-                                contactDetails: e.target.value,
-                              }))
+                              setForm((p) => ({ ...p, contactDetails: e.target.value }))
                             }
                             className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
-                            placeholder={
-                              "Website: www.example.com\nContact: +91 98765 43210"
-                            }
+                            placeholder={"Website: www.example.com\nContact: +91 98765 43210"}
                             rows={4}
                           />
                         </div>
@@ -882,18 +857,14 @@ export default function RegisterPage() {
                             </div>
 
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">
-                                Count
-                              </span>
+                              <span className="text-xs text-muted-foreground">Count</span>
                               <input
                                 type="number"
                                 min={2}
                                 max={5}
                                 value={form.numColors}
                                 onChange={(e) =>
-                                  setColorCount(
-                                    parseInt(e.target.value || "2", 10)
-                                  )
+                                  setColorCount(parseInt(e.target.value || "2", 10))
                                 }
                                 className="w-16 rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/30"
                               />
@@ -922,9 +893,7 @@ export default function RegisterPage() {
                                 <input
                                   type="color"
                                   value={form.colors[i]}
-                                  onChange={(e) =>
-                                    setColorAt(i, e.target.value)
-                                  }
+                                  onChange={(e) => setColorAt(i, e.target.value)}
                                   className="h-10 w-14 cursor-pointer rounded-lg border border-input bg-background p-1"
                                   aria-label={`Pick color ${i + 1}`}
                                 />
@@ -938,17 +907,14 @@ export default function RegisterPage() {
                             Business logo (optional)
                           </p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            PNG, JPG, SVG • max 5MB. Used on templates &
-                            branding.
+                            PNG, JPG, SVG • max 5MB. Used on templates & branding.
                           </p>
 
                           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <input
                               type="file"
                               accept="image/png,image/jpeg,image/jpg,image/svg+xml"
-                              onChange={(e) =>
-                                onLogoPick(e.target.files?.[0] || null)
-                              }
+                              onChange={(e) => onLogoPick(e.target.files?.[0] || null)}
                               className="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-full file:border-0 file:bg-primary/10 file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary hover:file:bg-primary/15"
                             />
 
@@ -973,10 +939,7 @@ export default function RegisterPage() {
                               />
                               <p className="mt-2 text-xs text-muted-foreground">
                                 {form.logoFile?.name} •{" "}
-                                {(
-                                  Number(form.logoFile?.size || 0) / 1024
-                                ).toFixed(1)}{" "}
-                                KB
+                                {(Number(form.logoFile?.size || 0) / 1024).toFixed(1)} KB
                               </p>
                             </div>
                           ) : null}
@@ -994,25 +957,15 @@ export default function RegisterPage() {
                           <div className="mt-3 grid grid-cols-1 gap-2 text-sm">
                             <div className="flex justify-between gap-3">
                               <span className="text-muted-foreground">Name</span>
-                              <span className="font-medium">
-                                {form.fullName || "-"}
-                              </span>
+                              <span className="font-medium">{form.fullName || "-"}</span>
                             </div>
                             <div className="flex justify-between gap-3">
-                              <span className="text-muted-foreground">
-                                Email
-                              </span>
-                              <span className="font-medium">
-                                {form.email || "-"}
-                              </span>
+                              <span className="text-muted-foreground">Email</span>
+                              <span className="font-medium">{form.email || "-"}</span>
                             </div>
                             <div className="flex justify-between gap-3">
-                              <span className="text-muted-foreground">
-                                Username
-                              </span>
-                              <span className="font-medium">
-                                {form.username || "-"}
-                              </span>
+                              <span className="text-muted-foreground">Username</span>
+                              <span className="font-medium">{form.username || "-"}</span>
                             </div>
                           </div>
                         </div>
@@ -1023,17 +976,11 @@ export default function RegisterPage() {
                           </p>
                           <div className="mt-3 grid grid-cols-1 gap-2 text-sm">
                             <div className="flex justify-between gap-3">
-                              <span className="text-muted-foreground">
-                                Brand
-                              </span>
-                              <span className="font-medium">
-                                {form.brandName || "-"}
-                              </span>
+                              <span className="text-muted-foreground">Brand</span>
+                              <span className="font-medium">{form.brandName || "-"}</span>
                             </div>
                             <div className="flex justify-between gap-3">
-                              <span className="text-muted-foreground">
-                                Industry
-                              </span>
+                              <span className="text-muted-foreground">Industry</span>
                               <span className="font-medium">{form.industry}</span>
                             </div>
                             <div className="flex justify-between gap-3">
@@ -1050,31 +997,19 @@ export default function RegisterPage() {
                           <div className="mt-3 grid grid-cols-1 gap-2 text-sm">
                             <div className="flex justify-between gap-3">
                               <span className="text-muted-foreground">Goals</span>
-                              <span className="font-medium">
-                                {form.goals.join(", ") || "-"}
-                              </span>
+                              <span className="font-medium">{form.goals.join(", ") || "-"}</span>
                             </div>
                             <div className="flex justify-between gap-3">
-                              <span className="text-muted-foreground">
-                                AI images
-                              </span>
-                              <span className="font-medium">
-                                {form.aiImages ? "Enabled" : "Disabled"}
-                              </span>
+                              <span className="text-muted-foreground">AI images</span>
+                              <span className="font-medium">{form.aiImages ? "Enabled" : "Disabled"}</span>
                             </div>
                             <div className="flex justify-between gap-3">
-                              <span className="text-muted-foreground">
-                                Frequency
-                              </span>
+                              <span className="text-muted-foreground">Frequency</span>
                               <span className="font-medium">{form.frequency}</span>
                             </div>
                             <div className="flex justify-between gap-3">
-                              <span className="text-muted-foreground">
-                                Post time
-                              </span>
-                              <span className="font-medium">
-                                {form.postScheduleTime}
-                              </span>
+                              <span className="text-muted-foreground">Post time</span>
+                              <span className="font-medium">{form.postScheduleTime}</span>
                             </div>
                           </div>
                         </div>
