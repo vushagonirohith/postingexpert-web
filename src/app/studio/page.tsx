@@ -9,8 +9,10 @@ import { SiteFooter } from "@/components/site-footer";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { clearAuth } from "@/lib/auth";
 
-// ✅ EXACTLY like your React code
-const API = "http://13.233.45.167:5000";
+// ✅ Use API Gateway for queue endpoints (AWS way)
+const GATEWAY =
+  process.env.NEXT_PUBLIC_GATEWAY_BASE_URL ||
+  "https://4fqbpp1yya.execute-api.ap-south-1.amazonaws.com/prod";
 
 type Platforms = {
   instagram: boolean;
@@ -70,7 +72,7 @@ export default function StudioPage() {
 
   const handleLogout = async () => {
     await new Promise((r) => setTimeout(r, 300));
-    clearAuth(); // removes token, expiry, user_id etc (your existing working util)
+    clearAuth();
     router.replace("/login");
   };
 
@@ -101,8 +103,16 @@ export default function StudioPage() {
 
     pollRef.current = setInterval(async () => {
       try {
-        // ✅ SAME as React: axios.get(`${API}/queue/status/${id}`)
-        const { data } = await axios.get(`${API}/queue/status/${id}`);
+        // ✅ Poll through API Gateway
+        const { data } = await axios.get(`${GATEWAY}/queue/status/${id}`, {
+          headers: {
+            // send auth if needed (safe)
+            Authorization:
+              typeof window !== "undefined" && localStorage.getItem("token")
+                ? `Bearer ${localStorage.getItem("token")}`
+                : "",
+          },
+        });
 
         setJobStatus(data?.status);
 
@@ -142,14 +152,13 @@ export default function StudioPage() {
     const token =
       typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-    // ✅ SAME headers as React code
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
-    // ✅ SAME as React: axios.post(`${API}/queue/enqueue`, payload, { headers })
-    const { data } = await axios.post(`${API}/queue/enqueue`, payload, {
+    // ✅ Enqueue through API Gateway
+    const { data } = await axios.post(`${GATEWAY}/queue/enqueue`, payload, {
       headers,
     });
 
@@ -206,9 +215,7 @@ export default function StudioPage() {
       const out = await enqueue(payload);
 
       const job_id = out?.job_id;
-      if (!job_id) {
-        throw new Error("Queue response missing job_id");
-      }
+      if (!job_id) throw new Error("Queue response missing job_id");
 
       setJobId(job_id);
       setJobStatus("queued");
@@ -229,7 +236,6 @@ export default function StudioPage() {
 
       setResponseMessage(msg);
 
-      // ✅ if auth error, bounce to login
       const status = err?.response?.status;
       if (status === 401 || status === 403) {
         clearAuth();
@@ -272,7 +278,6 @@ export default function StudioPage() {
     <>
       <SiteNavbar />
 
-      {/* NOTE: keep your CSS/classes if you have them, below is simple layout */}
       <main className="min-h-screen bg-background text-foreground">
         <div className="mx-auto max-w-4xl px-6 py-10">
           <div className="flex items-center justify-between gap-4">
@@ -281,7 +286,9 @@ export default function StudioPage() {
               <p className="mt-2 text-sm text-muted-foreground">
                 Queue jobs on EC2 and track status until done.
               </p>
-              <p className="mt-2 text-xs text-muted-foreground">API: {API}</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Gateway: {GATEWAY}
+              </p>
             </div>
 
             <button
@@ -374,7 +381,6 @@ export default function StudioPage() {
                 </div>
               </div>
 
-              {/* Meme Mode */}
               <div className="rounded-xl border border-border bg-background p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -396,7 +402,6 @@ export default function StudioPage() {
                 </div>
               </div>
 
-              {/* Platforms */}
               <div>
                 <div className="flex items-center justify-between">
                   <label className="text-xs text-muted-foreground">
@@ -447,7 +452,6 @@ export default function StudioPage() {
                 )}
               </div>
 
-              {/* Actions */}
               <div className="flex gap-3">
                 <button
                   type="submit"
@@ -466,7 +470,6 @@ export default function StudioPage() {
                 </button>
               </div>
 
-              {/* Status */}
               {(jobId || jobStatus) && (
                 <div className="rounded-xl border border-border bg-background p-4 text-sm">
                   <div className="flex items-center justify-between">
@@ -480,7 +483,6 @@ export default function StudioPage() {
                 </div>
               )}
 
-              {/* Message */}
               {responseMessage && (
                 <div
                   className={[
@@ -507,19 +509,12 @@ export default function StudioPage() {
             </div>
           </form>
 
-          {/* Results */}
           {result?.image_urls?.length > 0 && (
             <div className="mt-8 rounded-2xl border border-border bg-card p-6">
               <h3 className="text-lg font-semibold">Generated Images</h3>
               <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
                 {result.image_urls.map((url: string, i: number) => (
-                  <a
-                    key={i}
-                    href={url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block"
-                  >
+                  <a key={i} href={url} target="_blank" rel="noreferrer">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={url}
