@@ -7,18 +7,21 @@ export const GATEWAY_BASE = (
   "https://4fqbpp1yya.execute-api.ap-south-1.amazonaws.com/prod"
 ).replace(/\/$/, "");
 
-// ✅ EC2 Flask (Studio / Queue)
+// ✅ EC2 Flask (direct access - NOT safe from HTTPS browser)
 export const EC2_BASE = (
   process.env.NEXT_PUBLIC_API_BASE_URL ||
   "http://13.233.45.167:5000"
 ).replace(/\/$/, "");
+
+// ✅ Same-origin proxy (works in production HTTPS)
+export const PROXY_BASE = "";
 
 // Keep old export name for UI display if you want
 export const API_BASE = GATEWAY_BASE;
 
 /**
  * ✅ DEFAULT JSON API
- * options.base: "gateway" | "ec2"
+ * options.base: "gateway" | "ec2" | "proxy"
  */
 export async function apiFetch(path, options = {}) {
   const {
@@ -29,7 +32,8 @@ export async function apiFetch(path, options = {}) {
     base = "gateway",
   } = options;
 
-  const BASE = base === "ec2" ? EC2_BASE : GATEWAY_BASE;
+  const BASE =
+    base === "proxy" ? PROXY_BASE : base === "ec2" ? EC2_BASE : GATEWAY_BASE;
 
   const headers = { "Content-Type": "application/json", ...extraHeaders };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -65,12 +69,13 @@ export async function apiFetch(path, options = {}) {
 
 /**
  * ✅ MULTIPART API
- * options.base: "gateway" | "ec2"
+ * options.base: "gateway" | "ec2" | "proxy"
  */
 export async function apiUpload(path, options = {}) {
   const { method = "POST", formData, token, base = "gateway" } = options;
 
-  const BASE = base === "ec2" ? EC2_BASE : GATEWAY_BASE;
+  const BASE =
+    base === "proxy" ? PROXY_BASE : base === "ec2" ? EC2_BASE : GATEWAY_BASE;
 
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
