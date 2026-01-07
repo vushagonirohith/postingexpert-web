@@ -20,6 +20,14 @@ type Profile = {
   posts_created?: number;
   created_at?: number;
   updated_at?: number;
+
+  // ✅ from your get_profile()
+  color_theme?: string;
+  has_logo?: boolean;
+  logo_s3_url?: string;
+  logo_filename?: string;
+  profile_image?: string;
+
   [k: string]: any;
 };
 
@@ -27,7 +35,6 @@ type SocialStatus = {
   instagram: boolean;
   linkedin: boolean;
   facebook: boolean;
-  [k: string]: any;
 };
 
 function safeJsonParse(s: string) {
@@ -60,32 +67,13 @@ function normalizeProfile(raw: any): Profile {
     scheduled_time: p.scheduled_time ?? data?.scheduled_time,
     posts_created: p.posts_created ?? data?.posts_created ?? 0,
     connected_accounts: p.connected_accounts ?? data?.connected_accounts ?? 0,
-  };
-}
 
-function normalizeSocialStatus(raw: any): SocialStatus {
-  const data = normalizeLambdaWrapped(raw);
-
-  // Possible shapes:
-  // 1) { instagram: true, linkedin: true, facebook: false }
-  // 2) { status: { instagram: true, linkedin: true, facebook: false } }
-  // 3) { connected: { ... } }
-  const s = data?.status || data?.connected || data || {};
-
-  const pickBool = (v: any) => {
-    if (typeof v === "boolean") return v;
-    if (v && typeof v === "object") {
-      if (typeof v.connected === "boolean") return v.connected;
-      if (typeof v.is_connected === "boolean") return v.is_connected;
-      if (typeof v.ok === "boolean") return v.ok;
-    }
-    return false;
-  };
-
-  return {
-    instagram: pickBool(s.instagram),
-    linkedin: pickBool(s.linkedin),
-    facebook: pickBool(s.facebook),
+    // ✅ survey-related fields returned by your get_profile()
+    color_theme: p.color_theme ?? data?.color_theme,
+    has_logo: p.has_logo ?? data?.has_logo,
+    logo_s3_url: p.logo_s3_url ?? data?.logo_s3_url,
+    logo_filename: p.logo_filename ?? data?.logo_filename,
+    profile_image: p.profile_image ?? data?.profile_image,
   };
 }
 
@@ -121,15 +109,35 @@ export default function ConnectPage() {
       return;
     }
 
+    // ✅ app_user is required by your get_social_status()
+    const appUser =
+      localStorage.getItem("username") ||
+      localStorage.getItem("registeredUserId") ||
+      "";
+
     setLoading(true);
+
     try {
       const [profileRaw, socialRaw] = await Promise.all([
         apiFetch("/user/profile", { method: "GET", token }),
-        apiFetch("/social/status", { method: "GET", token }),
+        apiFetch(`/user/social-status?app_user=${encodeURIComponent(appUser)}`, {
+          method: "GET",
+          token,
+        }),
       ]);
 
+      // ✅ profile includes survey fields from UserSurveyData already
       setProfile(normalizeProfile(profileRaw));
-      setSocial(normalizeSocialStatus(socialRaw));
+
+      // ✅ your get_social_status returns: { connected: { instagram, linkedin, facebook, ... } }
+      const socialData = normalizeLambdaWrapped(socialRaw);
+      const connected = socialData?.connected || {};
+
+      setSocial({
+        instagram: !!connected.instagram,
+        linkedin: !!connected.linkedin,
+        facebook: !!connected.facebook,
+      });
     } catch (e: any) {
       const msg = e?.message || "";
 
@@ -147,6 +155,9 @@ export default function ConnectPage() {
         scheduled_time: "Not set",
         posts_created: 0,
         connected_accounts: 0,
+        has_logo: false,
+        logo_s3_url: "",
+        logo_filename: "",
       });
 
       setSocial({ instagram: false, linkedin: false, facebook: false });
@@ -162,7 +173,6 @@ export default function ConnectPage() {
   }, [ready]);
 
   // ✅ After OAuth callback redirect, status can update slightly later
-  // This makes UI show connected without user refreshing.
   useEffect(() => {
     if (!ready) return;
 
@@ -183,7 +193,7 @@ export default function ConnectPage() {
     return profile.name || profile.username || "User";
   }, [profile]);
 
-  // ✅ Real connected count from /social/status
+  // ✅ Real connected count from get_social_status()
   const connectedCount = useMemo(() => {
     return [social.instagram, social.linkedin, social.facebook].filter(Boolean)
       .length;
@@ -240,7 +250,9 @@ export default function ConnectPage() {
               <p className="text-sm text-muted-foreground">Status</p>
 
               <div className="mt-3 rounded-2xl border border-border bg-background p-4">
-                <p className="text-xs text-muted-foreground">Connected accounts</p>
+                <p className="text-xs text-muted-foreground">
+                  Connected accounts
+                </p>
                 <p className="mt-1 text-2xl font-semibold">
                   {loading ? "—" : `${connectedCount}/3`}
                 </p>
@@ -260,9 +272,21 @@ export default function ConnectPage() {
 
               <div className="mt-3 rounded-2xl border border-border bg-background p-4">
                 <p className="text-xs text-muted-foreground">Logo</p>
-                <p className="mt-1 text-sm font-medium">
-                  Upload later (we’ll guide you).
-                </p>
+
+                {profile?.has_logo && profile?.logo_s3_url ? (
+                  <a
+                    href={profile.logo_s3_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 inline-block text-sm font-medium underline"
+                  >
+                    View logo {profile.logo_filename ? `(${profile.logo_filename})` : ""}
+                  </a>
+                ) : (
+                  <p className="mt-1 text-sm font-medium">
+                    Upload later (we’ll guide you).
+                  </p>
+                )}
               </div>
 
               <button
@@ -276,7 +300,7 @@ export default function ConnectPage() {
           </div>
 
           {/* Connect buttons */}
-          <ConnectClient profile={profile} social={social} />
+          <ConnectClient profile={profile} />
         </div>
 
         <SiteFooter />

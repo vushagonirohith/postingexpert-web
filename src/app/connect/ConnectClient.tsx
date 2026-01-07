@@ -4,19 +4,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import LinkedInConnectClient from "./linkedin/LinkedInConnectClient";
-import { apiFetch } from "@/lib/api";
-import { getToken, clearAuth } from "@/lib/auth";
 
 type SocialDetail = Record<string, any> | null;
 
-type SocialStatus = {
-  instagram: boolean;
-  linkedin: boolean;
-  facebook: boolean;
-  instagram_detail?: SocialDetail;
-  linkedin_detail?: SocialDetail;
-  facebook_detail?: SocialDetail;
-  [k: string]: any;
+type SocialStatusResponse = {
+  instagram?: { connected?: boolean; detail?: SocialDetail };
+  linkedin?: { connected?: boolean; detail?: SocialDetail };
+  facebook?: { connected?: boolean; detail?: SocialDetail };
 };
 
 type ProfileLite = {
@@ -27,6 +21,15 @@ type ProfileLite = {
   posts_created?: number;
   scheduled_time?: string;
 };
+
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://13.233.45.167:5000"
+).replace(/\/$/, "");
+
+function getToken() {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("token");
+}
 
 function getAppUser(profile?: ProfileLite | null) {
   return (
@@ -39,6 +42,7 @@ function getAppUser(profile?: ProfileLite | null) {
   );
 }
 
+// Instagram (FB dialog/oauth) — same as you had
 function buildInstagramAuthUrl(appUser: string) {
   const clientId = process.env.NEXT_PUBLIC_INSTAGRAM_CLIENT_ID || "";
   const redirectUri = process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI || "";
@@ -52,17 +56,17 @@ function buildInstagramAuthUrl(appUser: string) {
     "business_management",
   ];
 
-  const url =
+  return (
     "https://www.facebook.com/v21.0/dialog/oauth" +
     `?client_id=${encodeURIComponent(clientId)}` +
     `&redirect_uri=${encodeURIComponent(redirectUri)}` +
     `&state=${encodeURIComponent(appUser)}` +
     `&response_type=code` +
-    `&scope=${encodeURIComponent(scopes.join(","))}`;
-
-  return url;
+    `&scope=${encodeURIComponent(scopes.join(","))}`
+  );
 }
 
+// Facebook dialog/oauth
 function buildFacebookAuthUrl(appUser: string) {
   const clientId = process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID || "";
   const redirectUri = process.env.NEXT_PUBLIC_FACEBOOK_REDIRECT_URI || "";
@@ -77,15 +81,14 @@ function buildFacebookAuthUrl(appUser: string) {
     "public_profile",
   ];
 
-  const url =
+  return (
     "https://www.facebook.com/v21.0/dialog/oauth" +
     `?client_id=${encodeURIComponent(clientId)}` +
     `&redirect_uri=${encodeURIComponent(redirectUri)}` +
     `&state=${encodeURIComponent(appUser)}` +
     `&response_type=code` +
-    `&scope=${encodeURIComponent(scopes.join(","))}`;
-
-  return url;
+    `&scope=${encodeURIComponent(scopes.join(","))}`
+  );
 }
 
 function openCenteredPopup(url: string, title: string) {
@@ -101,141 +104,100 @@ function openCenteredPopup(url: string, title: string) {
   );
 }
 
-function isAuthErrorMessage(msg: string) {
-  const m = (msg || "").toLowerCase();
-  return (
-    m.includes("401") ||
-    m.includes("403") ||
-    m.includes("unauthorized") ||
-    m.includes("forbidden") ||
-    m.includes("token") ||
-    m.includes("authorization")
-  );
-}
-
-export default function ConnectClient({
-  profile,
-  social,
-}: {
-  profile: ProfileLite | null;
-  social: SocialStatus;
-}) {
+export default function ConnectClient({ profile }: { profile: ProfileLite | null }) {
   const router = useRouter();
 
-  const [localSocial, setLocalSocial] = useState<SocialStatus>(social);
   const [toast, setToast] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  // profile shown in UI
-  const [userProfile, setUserProfile] = useState<ProfileLite | null>(profile);
+  const [social, setSocial] = useState({
+    instagram: { connected: false, detail: null as SocialDetail },
+    linkedin: { connected: false, detail: null as SocialDetail },
+    facebook: { connected: false, detail: null as SocialDetail },
+  });
 
-  // instagram/facebook optimistic UI state
+  // Optimistic UI so badge doesn’t show "Not connected" immediately after callback
   const [igUiConnected, setIgUiConnected] = useState(false);
   const [fbUiConnected, setFbUiConnected] = useState(false);
 
-  useEffect(() => {
-    setLocalSocial(social);
-  }, [social]);
+  const appUser = useMemo(() => getAppUser(profile), [profile?.username]);
 
-  const appUser = useMemo(() => getAppUser(userProfile || profile), [
-    userProfile?.username,
-    profile?.username,
-  ]);
+  const isInstagramConnected = social.instagram.connected || igUiConnected;
+  const isFacebookConnected = social.facebook.connected || fbUiConnected;
 
   const connectedCount = useMemo(() => {
-    const ig = localSocial.instagram || igUiConnected;
-    const li = localSocial.linkedin;
-    const fb = localSocial.facebook || fbUiConnected;
-    return [ig, li, fb].filter(Boolean).length;
-  }, [localSocial, igUiConnected, fbUiConnected]);
+    const li = social.linkedin.connected;
+    const ig = isInstagramConnected;
+    const fb = isFacebookConnected;
+    return [li, ig, fb].filter(Boolean).length;
+  }, [social.linkedin.connected, isInstagramConnected, isFacebookConnected]);
 
-  const fetchUserProfile = async () => {
-    const token = getToken();
-    if (!token) {
-      clearAuth();
-      router.replace("/login");
-      return;
-    }
-
-    try {
-      const res = await apiFetch("/user/profile", { method: "GET", token });
-      const p = res?.profile || res || {};
-      setUserProfile({
-        username: p.username,
-        email: p.email,
-        business_type: p.business_type,
-        connected_accounts: p.connected_accounts,
-        posts_created: p.posts_created,
-        scheduled_time: p.scheduled_time,
-      });
-    } catch (e: any) {
-      const msg = e?.message || "Failed to load profile.";
-      if (isAuthErrorMessage(msg)) {
-        clearAuth();
-        router.replace("/login");
-        return;
-      }
-      setToast(`❌ ${msg}`);
-    }
-  };
-
-  const refreshSocial = async () => {
+  const fetchSocialStatus = async () => {
     const token = getToken();
     if (!token) {
       setToast("❌ Missing token. Please login again.");
-      clearAuth();
-      router.replace("/login");
+      return;
+    }
+    if (!appUser) {
+      setToast("❌ app_user missing. Please login again.");
       return;
     }
 
+    setLoading(true);
     try {
-      const res = await apiFetch("/social/status", {
-        method: "GET",
-        token,
-      });
-
-      const s = res?.status || res?.connected || res || {};
-
-      const pickBool = (v: any) => {
-        if (typeof v === "boolean") return v;
-        if (v && typeof v === "object") {
-          if (typeof v.connected === "boolean") return v.connected;
-          if (typeof v.is_connected === "boolean") return v.is_connected;
-          if (typeof v.ok === "boolean") return v.ok;
+      const res = await fetch(
+        `${API_BASE}/social/status?app_user=${encodeURIComponent(appUser)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          cache: "no-store",
         }
-        return false;
-      };
+      );
 
-      const next: SocialStatus = {
-        instagram: pickBool(s.instagram),
-        linkedin: pickBool(s.linkedin),
-        facebook: pickBool(s.facebook),
-        instagram_detail: s.instagram?.detail || s.instagram_detail || null,
-        linkedin_detail: s.linkedin?.detail || s.linkedin_detail || null,
-        facebook_detail: s.facebook?.detail || s.facebook_detail || null,
-      };
-
-      setLocalSocial(next);
-
-      // if backend says connected, stop optimistic flags
-      if (next.instagram) setIgUiConnected(false);
-      if (next.facebook) setFbUiConnected(false);
-    } catch (e: any) {
-      const msg = e?.message || "Failed to refresh social status.";
-      if (isAuthErrorMessage(msg)) {
-        clearAuth();
-        router.replace("/login");
+      if (!res.ok) {
+        const t = await res.text();
+        setToast(`❌ Social status failed (${res.status}): ${t || "Unknown error"}`);
         return;
       }
-      setToast(`❌ ${msg}`);
+
+      const data = (await res.json()) as SocialStatusResponse;
+
+      const next = {
+        instagram: {
+          connected: Boolean(data.instagram?.connected),
+          detail: data.instagram?.detail || null,
+        },
+        linkedin: {
+          connected: Boolean(data.linkedin?.connected),
+          detail: data.linkedin?.detail || null,
+        },
+        facebook: {
+          connected: Boolean(data.facebook?.connected),
+          detail: data.facebook?.detail || null,
+        },
+      };
+
+      setSocial(next);
+
+      // If backend confirms, stop optimistic flags
+      if (next.instagram.connected) setIgUiConnected(false);
+      if (next.facebook.connected) setFbUiConnected(false);
+    } catch (e: any) {
+      setToast(`❌ Failed to fetch social status: ${e?.message || "Network error"}`);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchUserProfile();
+    if (!appUser) return;
+    fetchSocialStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [appUser]);
 
-  // popup callback listener (IG + FB + LI)
+  // Listen to popup callbacks (instagram_callback/facebook_callback/linkedin_callback)
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       const msg = event.data;
@@ -244,134 +206,51 @@ export default function ConnectClient({
       if (msg.type === "instagram_callback") {
         if (msg.success) {
           setToast("✅ Instagram connected!");
-          setIgUiConnected(true); // ✅ optimistic connected immediately
+          setIgUiConnected(true);
         } else {
           setToast(`❌ Instagram: ${msg.error || "Connection failed"}`);
           setIgUiConnected(false);
         }
-        refreshSocial();
-        fetchUserProfile();
+        fetchSocialStatus();
       }
 
       if (msg.type === "facebook_callback") {
         if (msg.success) {
           setToast("✅ Facebook connected!");
-          setFbUiConnected(true); // ✅ optimistic
+          setFbUiConnected(true);
         } else {
           setToast(`❌ Facebook: ${msg.error || "Connection failed"}`);
           setFbUiConnected(false);
         }
-        refreshSocial();
-        fetchUserProfile();
+        fetchSocialStatus();
       }
 
       if (msg.type === "linkedin_callback") {
-        setToast(
-          msg.success
-            ? "✅ LinkedIn connected!"
-            : `❌ LinkedIn: ${msg.error || "Connection failed"}`
-        );
-        refreshSocial();
-        fetchUserProfile();
+        setToast(msg.success ? "✅ LinkedIn connected!" : `❌ LinkedIn: ${msg.error || "Connection failed"}`);
+        fetchSocialStatus();
       }
     };
 
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [appUser]);
 
-  // Instagram connect/disconnect
   const onInstagramConnect = () => {
-    if (!appUser) {
-      setToast("❌ appUser missing (username). Login again.");
-      return;
-    }
-    const authUrl = buildInstagramAuthUrl(appUser);
-    if (!authUrl) {
-      setToast("❌ Missing NEXT_PUBLIC_INSTAGRAM_CLIENT_ID or REDIRECT_URI");
-      return;
-    }
-    const pop = openCenteredPopup(authUrl, "instagram_oauth");
+    if (!appUser) return setToast("❌ app_user missing. Login again.");
+    const url = buildInstagramAuthUrl(appUser);
+    if (!url) return setToast("❌ Missing IG env vars (CLIENT_ID or REDIRECT_URI).");
+    const pop = openCenteredPopup(url, "instagram_oauth");
     if (!pop) setToast("❌ Popup blocked. Allow popups and try again.");
   };
 
-  const onInstagramDisconnect = async () => {
-    if (!window.confirm("Disconnect Instagram?")) return;
-
-    const token = getToken();
-    if (!token) {
-      clearAuth();
-      router.replace("/login");
-      return;
-    }
-
-    try {
-      const res = await apiFetch("/social/instagram/disconnect", {
-        method: "POST",
-        token,
-        body: { app_user: appUser },
-      });
-
-      if (res?.success) {
-        setToast("✅ Instagram disconnected!");
-        setIgUiConnected(false);
-        refreshSocial();
-      } else {
-        setToast(`❌ ${res?.error || res?.message || "Disconnect failed"}`);
-      }
-    } catch (e: any) {
-      setToast(`❌ ${e?.message || "Disconnect failed"}`);
-    }
-  };
-
-  // Facebook connect/disconnect
   const onFacebookConnect = () => {
-    if (!appUser) {
-      setToast("❌ appUser missing (username). Login again.");
-      return;
-    }
-    const authUrl = buildFacebookAuthUrl(appUser);
-    if (!authUrl) {
-      setToast("❌ Missing NEXT_PUBLIC_FACEBOOK_CLIENT_ID or REDIRECT_URI");
-      return;
-    }
-    const pop = openCenteredPopup(authUrl, "facebook_oauth");
+    if (!appUser) return setToast("❌ app_user missing. Login again.");
+    const url = buildFacebookAuthUrl(appUser);
+    if (!url) return setToast("❌ Missing FB env vars (CLIENT_ID or REDIRECT_URI).");
+    const pop = openCenteredPopup(url, "facebook_oauth");
     if (!pop) setToast("❌ Popup blocked. Allow popups and try again.");
   };
-
-  const onFacebookDisconnect = async () => {
-    if (!window.confirm("Disconnect Facebook?")) return;
-
-    const token = getToken();
-    if (!token) {
-      clearAuth();
-      router.replace("/login");
-      return;
-    }
-
-    try {
-      const res = await apiFetch("/social/facebook/disconnect", {
-        method: "POST",
-        token,
-        body: { app_user: appUser },
-      });
-
-      if (res?.success) {
-        setToast("✅ Facebook disconnected!");
-        setFbUiConnected(false);
-        refreshSocial();
-      } else {
-        setToast(`❌ ${res?.error || res?.message || "Disconnect failed"}`);
-      }
-    } catch (e: any) {
-      setToast(`❌ ${e?.message || "Disconnect failed"}`);
-    }
-  };
-
-  // Effective connected flags (includes optimistic for IG/FB)
-  const isInstagramConnected = !!localSocial.instagram || igUiConnected;
-  const isFacebookConnected = !!localSocial.facebook || fbUiConnected;
 
   return (
     <div className="mt-10 rounded-3xl border border-border bg-card p-8 shadow-sm">
@@ -381,37 +260,25 @@ export default function ConnectClient({
         </div>
       )}
 
-      {/* Profile */}
+      {/* Profile summary (only from local/profile prop, no backend call) */}
       <div className="mb-6 rounded-3xl border border-border bg-background p-5">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-sm text-muted-foreground">Logged in as</div>
-            <div className="mt-1 text-lg font-semibold">
-              {userProfile?.username || "—"}
-            </div>
+            <div className="mt-1 text-lg font-semibold">{profile?.username || "—"}</div>
             <div className="mt-1 text-sm text-muted-foreground">
-              {userProfile?.email || ""}
-              {userProfile?.business_type ? ` • ${userProfile.business_type}` : ""}
+              {profile?.email || ""}
+              {profile?.business_type ? ` • ${profile.business_type}` : ""}
             </div>
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2 md:mt-0">
             <Badge label={`Connected: ${connectedCount}/3`} />
-            {typeof userProfile?.posts_created === "number" ? (
-              <Badge label={`Posts: ${userProfile.posts_created}`} />
-            ) : null}
-            {userProfile?.scheduled_time ? (
-              <Badge label={`Schedule: ${userProfile.scheduled_time}`} />
-            ) : null}
-
             <button
-              onClick={() => {
-                refreshSocial();
-                fetchUserProfile();
-              }}
+              onClick={fetchSocialStatus}
               className="rounded-full border border-border bg-card px-4 py-2 text-xs font-medium transition hover:bg-muted"
             >
-              Refresh
+              {loading ? "Refreshing..." : "Refresh"}
             </button>
           </div>
         </div>
@@ -467,19 +334,14 @@ export default function ConnectClient({
                 Company page or profile posting
               </p>
             </div>
-            {/* ✅ REMOVED parent status badge to avoid duplicate */}
+            {/* remove top "Not connected" duplication */}
           </div>
 
           <LinkedInConnectClient
             appUser={appUser}
-            connected={!!localSocial.linkedin}
-            connectionDetails={{
-              detail: (localSocial.linkedin_detail as any) || null,
-            }}
-            onConnected={() => {
-              refreshSocial();
-              fetchUserProfile();
-            }}
+            connected={social.linkedin.connected}
+            connectionDetails={{ detail: social.linkedin.detail }}
+            onConnected={() => fetchSocialStatus()}
             fullWidth
             connectLabel="Connect"
             disconnectLabel="Disconnect"
@@ -496,7 +358,6 @@ export default function ConnectClient({
               </p>
             </div>
 
-            {/* ✅ SINGLE status badge here (uses optimistic flag too) */}
             <span
               className={`mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
                 isInstagramConnected
@@ -508,25 +369,16 @@ export default function ConnectClient({
             </span>
           </div>
 
-          {isInstagramConnected ? (
-            <button
-              onClick={onInstagramDisconnect}
-              className="mt-5 w-full rounded-full bg-red-600 px-5 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90"
-            >
-              Disconnect
-            </button>
-          ) : (
-            <button
-              onClick={onInstagramConnect}
-              className="mt-5 w-full rounded-full bg-primary px-5 py-3 text-sm font-medium text-primary-foreground shadow-sm transition hover:opacity-90"
-            >
-              Connect
-            </button>
-          )}
+          <button
+            onClick={onInstagramConnect}
+            className="mt-5 w-full rounded-full bg-primary px-5 py-3 text-sm font-medium text-primary-foreground shadow-sm transition hover:opacity-90"
+          >
+            {isInstagramConnected ? "Reconnect" : "Connect"}
+          </button>
 
-          {!!localSocial.instagram_detail?.username && (
+          {!!social.instagram.detail?.username && (
             <div className="mt-2 text-xs text-muted-foreground">
-              @{localSocial.instagram_detail.username}
+              @{(social.instagram.detail as any).username}
             </div>
           )}
         </div>
@@ -541,7 +393,6 @@ export default function ConnectClient({
               </p>
             </div>
 
-            {/* ✅ SINGLE status badge here (uses optimistic flag too) */}
             <span
               className={`mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
                 isFacebookConnected
@@ -553,25 +404,16 @@ export default function ConnectClient({
             </span>
           </div>
 
-          {isFacebookConnected ? (
-            <button
-              onClick={onFacebookDisconnect}
-              className="mt-5 w-full rounded-full bg-red-600 px-5 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90"
-            >
-              Disconnect
-            </button>
-          ) : (
-            <button
-              onClick={onFacebookConnect}
-              className="mt-5 w-full rounded-full bg-primary px-5 py-3 text-sm font-medium text-primary-foreground shadow-sm transition hover:opacity-90"
-            >
-              Connect
-            </button>
-          )}
+          <button
+            onClick={onFacebookConnect}
+            className="mt-5 w-full rounded-full bg-primary px-5 py-3 text-sm font-medium text-primary-foreground shadow-sm transition hover:opacity-90"
+          >
+            {isFacebookConnected ? "Reconnect" : "Connect"}
+          </button>
 
-          {!!localSocial.facebook_detail?.page_name && (
+          {!!social.facebook.detail?.page_name && (
             <div className="mt-2 text-xs text-muted-foreground">
-              Page: {localSocial.facebook_detail.page_name}
+              Page: {(social.facebook.detail as any).page_name}
             </div>
           )}
         </div>
