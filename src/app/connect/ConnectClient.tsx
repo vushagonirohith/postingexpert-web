@@ -32,12 +32,13 @@ function getAppUser(profile?: ProfileLite | null) {
   return (
     profile?.username ||
     (typeof window !== "undefined" ? localStorage.getItem("username") : "") ||
-    (typeof window !== "undefined" ? localStorage.getItem("registeredUserId") : "") ||
+    (typeof window !== "undefined"
+      ? localStorage.getItem("registeredUserId")
+      : "") ||
     ""
   );
 }
 
-/** Build Meta OAuth URL for Instagram Graph API (via Facebook OAuth dialog) */
 function buildInstagramAuthUrl(appUser: string) {
   const clientId = process.env.NEXT_PUBLIC_INSTAGRAM_CLIENT_ID || "";
   const redirectUri = process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI || "";
@@ -49,6 +50,31 @@ function buildInstagramAuthUrl(appUser: string) {
     "instagram_basic",
     "instagram_content_publish",
     "business_management",
+  ];
+
+  const url =
+    "https://www.facebook.com/v21.0/dialog/oauth" +
+    `?client_id=${encodeURIComponent(clientId)}` +
+    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+    `&state=${encodeURIComponent(appUser)}` +
+    `&response_type=code` +
+    `&scope=${encodeURIComponent(scopes.join(","))}`;
+
+  return url;
+}
+
+function buildFacebookAuthUrl(appUser: string) {
+  const clientId = process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID || "";
+  const redirectUri = process.env.NEXT_PUBLIC_FACEBOOK_REDIRECT_URI || "";
+  if (!clientId || !redirectUri) return null;
+
+  const scopes = [
+    "pages_show_list",
+    "pages_read_engagement",
+    "pages_manage_posts",
+    "pages_manage_metadata",
+    "pages_manage_engagement",
+    "public_profile",
   ];
 
   const url =
@@ -92,26 +118,66 @@ export default function ConnectClient({
   social,
 }: {
   profile: ProfileLite | null;
-  social: SocialStatus; // ✅ receives normalized social status from page.tsx
+  social: SocialStatus;
 }) {
   const router = useRouter();
 
-  // ✅ local copy so UI updates instantly
   const [localSocial, setLocalSocial] = useState<SocialStatus>(social);
   const [toast, setToast] = useState<string | null>(null);
+
+  // profile shown in UI
+  const [userProfile, setUserProfile] = useState<ProfileLite | null>(profile);
+
+  // instagram/facebook optimistic UI state
+  const [igUiConnected, setIgUiConnected] = useState(false);
+  const [fbUiConnected, setFbUiConnected] = useState(false);
 
   useEffect(() => {
     setLocalSocial(social);
   }, [social]);
 
-  const appUser = useMemo(() => getAppUser(profile), [profile?.username]);
+  const appUser = useMemo(() => getAppUser(userProfile || profile), [
+    userProfile?.username,
+    profile?.username,
+  ]);
 
   const connectedCount = useMemo(() => {
-    return [localSocial.instagram, localSocial.linkedin, localSocial.facebook].filter(Boolean)
-      .length;
-  }, [localSocial]);
+    const ig = localSocial.instagram || igUiConnected;
+    const li = localSocial.linkedin;
+    const fb = localSocial.facebook || fbUiConnected;
+    return [ig, li, fb].filter(Boolean).length;
+  }, [localSocial, igUiConnected, fbUiConnected]);
 
-  // ✅ re-fetch status using apiFetch (same gateway logic + no CORS mess)
+  const fetchUserProfile = async () => {
+    const token = getToken();
+    if (!token) {
+      clearAuth();
+      router.replace("/login");
+      return;
+    }
+
+    try {
+      const res = await apiFetch("/user/profile", { method: "GET", token });
+      const p = res?.profile || res || {};
+      setUserProfile({
+        username: p.username,
+        email: p.email,
+        business_type: p.business_type,
+        connected_accounts: p.connected_accounts,
+        posts_created: p.posts_created,
+        scheduled_time: p.scheduled_time,
+      });
+    } catch (e: any) {
+      const msg = e?.message || "Failed to load profile.";
+      if (isAuthErrorMessage(msg)) {
+        clearAuth();
+        router.replace("/login");
+        return;
+      }
+      setToast(`❌ ${msg}`);
+    }
+  };
+
   const refreshSocial = async () => {
     const token = getToken();
     if (!token) {
@@ -127,8 +193,8 @@ export default function ConnectClient({
         token,
       });
 
-      // allow boolean shape or {status:{}} shape or {linkedin:{connected:true}}
       const s = res?.status || res?.connected || res || {};
+
       const pickBool = (v: any) => {
         if (typeof v === "boolean") return v;
         if (v && typeof v === "object") {
@@ -143,14 +209,16 @@ export default function ConnectClient({
         instagram: pickBool(s.instagram),
         linkedin: pickBool(s.linkedin),
         facebook: pickBool(s.facebook),
-
-        // optional detail shapes if backend provides
         instagram_detail: s.instagram?.detail || s.instagram_detail || null,
         linkedin_detail: s.linkedin?.detail || s.linkedin_detail || null,
         facebook_detail: s.facebook?.detail || s.facebook_detail || null,
       };
 
       setLocalSocial(next);
+
+      // if backend says connected, stop optimistic flags
+      if (next.instagram) setIgUiConnected(false);
+      if (next.facebook) setFbUiConnected(false);
     } catch (e: any) {
       const msg = e?.message || "Failed to refresh social status.";
       if (isAuthErrorMessage(msg)) {
@@ -162,22 +230,49 @@ export default function ConnectClient({
     }
   };
 
-  // Listen for popup callback messages (if your callback page posts message)
+  useEffect(() => {
+    fetchUserProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // popup callback listener (IG + FB + LI)
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       const msg = event.data;
       if (!msg || typeof msg !== "object" || !msg.type) return;
 
       if (msg.type === "instagram_callback") {
-        if (msg.success) setToast("✅ Instagram connected!");
-        else setToast(`❌ Instagram: ${msg.error || "Connection failed"}`);
+        if (msg.success) {
+          setToast("✅ Instagram connected!");
+          setIgUiConnected(true); // ✅ optimistic connected immediately
+        } else {
+          setToast(`❌ Instagram: ${msg.error || "Connection failed"}`);
+          setIgUiConnected(false);
+        }
         refreshSocial();
+        fetchUserProfile();
+      }
+
+      if (msg.type === "facebook_callback") {
+        if (msg.success) {
+          setToast("✅ Facebook connected!");
+          setFbUiConnected(true); // ✅ optimistic
+        } else {
+          setToast(`❌ Facebook: ${msg.error || "Connection failed"}`);
+          setFbUiConnected(false);
+        }
+        refreshSocial();
+        fetchUserProfile();
       }
 
       if (msg.type === "linkedin_callback") {
-        if (msg.success) setToast("✅ LinkedIn connected!");
-        else setToast(`❌ LinkedIn: ${msg.error || "Connection failed"}`);
+        setToast(
+          msg.success
+            ? "✅ LinkedIn connected!"
+            : `❌ LinkedIn: ${msg.error || "Connection failed"}`
+        );
         refreshSocial();
+        fetchUserProfile();
       }
     };
 
@@ -186,6 +281,7 @@ export default function ConnectClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Instagram connect/disconnect
   const onInstagramConnect = () => {
     if (!appUser) {
       setToast("❌ appUser missing (username). Login again.");
@@ -200,6 +296,83 @@ export default function ConnectClient({
     if (!pop) setToast("❌ Popup blocked. Allow popups and try again.");
   };
 
+  const onInstagramDisconnect = async () => {
+    if (!window.confirm("Disconnect Instagram?")) return;
+
+    const token = getToken();
+    if (!token) {
+      clearAuth();
+      router.replace("/login");
+      return;
+    }
+
+    try {
+      const res = await apiFetch("/social/instagram/disconnect", {
+        method: "POST",
+        token,
+        body: { app_user: appUser },
+      });
+
+      if (res?.success) {
+        setToast("✅ Instagram disconnected!");
+        setIgUiConnected(false);
+        refreshSocial();
+      } else {
+        setToast(`❌ ${res?.error || res?.message || "Disconnect failed"}`);
+      }
+    } catch (e: any) {
+      setToast(`❌ ${e?.message || "Disconnect failed"}`);
+    }
+  };
+
+  // Facebook connect/disconnect
+  const onFacebookConnect = () => {
+    if (!appUser) {
+      setToast("❌ appUser missing (username). Login again.");
+      return;
+    }
+    const authUrl = buildFacebookAuthUrl(appUser);
+    if (!authUrl) {
+      setToast("❌ Missing NEXT_PUBLIC_FACEBOOK_CLIENT_ID or REDIRECT_URI");
+      return;
+    }
+    const pop = openCenteredPopup(authUrl, "facebook_oauth");
+    if (!pop) setToast("❌ Popup blocked. Allow popups and try again.");
+  };
+
+  const onFacebookDisconnect = async () => {
+    if (!window.confirm("Disconnect Facebook?")) return;
+
+    const token = getToken();
+    if (!token) {
+      clearAuth();
+      router.replace("/login");
+      return;
+    }
+
+    try {
+      const res = await apiFetch("/social/facebook/disconnect", {
+        method: "POST",
+        token,
+        body: { app_user: appUser },
+      });
+
+      if (res?.success) {
+        setToast("✅ Facebook disconnected!");
+        setFbUiConnected(false);
+        refreshSocial();
+      } else {
+        setToast(`❌ ${res?.error || res?.message || "Disconnect failed"}`);
+      }
+    } catch (e: any) {
+      setToast(`❌ ${e?.message || "Disconnect failed"}`);
+    }
+  };
+
+  // Effective connected flags (includes optimistic for IG/FB)
+  const isInstagramConnected = !!localSocial.instagram || igUiConnected;
+  const isFacebookConnected = !!localSocial.facebook || fbUiConnected;
+
   return (
     <div className="mt-10 rounded-3xl border border-border bg-card p-8 shadow-sm">
       {toast && (
@@ -208,6 +381,43 @@ export default function ConnectClient({
         </div>
       )}
 
+      {/* Profile */}
+      <div className="mb-6 rounded-3xl border border-border bg-background p-5">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="text-sm text-muted-foreground">Logged in as</div>
+            <div className="mt-1 text-lg font-semibold">
+              {userProfile?.username || "—"}
+            </div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              {userProfile?.email || ""}
+              {userProfile?.business_type ? ` • ${userProfile.business_type}` : ""}
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2 md:mt-0">
+            <Badge label={`Connected: ${connectedCount}/3`} />
+            {typeof userProfile?.posts_created === "number" ? (
+              <Badge label={`Posts: ${userProfile.posts_created}`} />
+            ) : null}
+            {userProfile?.scheduled_time ? (
+              <Badge label={`Schedule: ${userProfile.scheduled_time}`} />
+            ) : null}
+
+            <button
+              onClick={() => {
+                refreshSocial();
+                fetchUserProfile();
+              }}
+              className="rounded-full border border-border bg-card px-4 py-2 text-xs font-medium transition hover:bg-muted"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Next steps */}
       <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
         <div>
           <p className="text-sm text-muted-foreground">Next steps</p>
@@ -227,10 +437,6 @@ export default function ConnectClient({
               Auto Mode publishes while you focus on business
             </li>
           </ul>
-
-          <p className="mt-4 text-xs text-muted-foreground">
-            Connected: <span className="font-semibold">{connectedCount}/3</span>
-          </p>
         </div>
 
         <div className="flex flex-col gap-3">
@@ -247,49 +453,76 @@ export default function ConnectClient({
           >
             Go to Dashboard
           </button>
-
-          <button
-            onClick={refreshSocial}
-            className="rounded-full border border-border bg-card px-6 py-3 text-sm font-medium transition hover:bg-muted"
-          >
-            Refresh status
-          </button>
         </div>
       </div>
 
       {/* Platforms */}
       <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3">
-        {/* ✅ LinkedIn */}
+        {/* LinkedIn */}
         <div className="rounded-3xl border border-border bg-background p-6">
-          <p className="text-lg font-semibold">LinkedIn</p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Company page or profile posting
-          </p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-lg font-semibold">LinkedIn</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Company page or profile posting
+              </p>
+            </div>
+            {/* ✅ REMOVED parent status badge to avoid duplicate */}
+          </div>
 
           <LinkedInConnectClient
             appUser={appUser}
             connected={!!localSocial.linkedin}
-            connectionDetails={{ detail: localSocial.linkedin_detail || null }}
-            onConnected={() => refreshSocial()}
+            connectionDetails={{
+              detail: (localSocial.linkedin_detail as any) || null,
+            }}
+            onConnected={() => {
+              refreshSocial();
+              fetchUserProfile();
+            }}
             fullWidth
             connectLabel="Connect"
             disconnectLabel="Disconnect"
           />
         </div>
 
-        {/* ✅ Instagram */}
+        {/* Instagram */}
         <div className="rounded-3xl border border-border bg-background p-6">
-          <p className="text-lg font-semibold">Instagram</p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Auto post images + captions
-          </p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-lg font-semibold">Instagram</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Auto post images + captions
+              </p>
+            </div>
 
-          <button
-            onClick={onInstagramConnect}
-            className="mt-5 w-full rounded-full bg-primary px-5 py-3 text-sm font-medium text-primary-foreground shadow-sm transition hover:opacity-90"
-          >
-            {localSocial.instagram ? "Connected" : "Connect"}
-          </button>
+            {/* ✅ SINGLE status badge here (uses optimistic flag too) */}
+            <span
+              className={`mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
+                isInstagramConnected
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {isInstagramConnected ? "Connected" : "Not connected"}
+            </span>
+          </div>
+
+          {isInstagramConnected ? (
+            <button
+              onClick={onInstagramDisconnect}
+              className="mt-5 w-full rounded-full bg-red-600 px-5 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90"
+            >
+              Disconnect
+            </button>
+          ) : (
+            <button
+              onClick={onInstagramConnect}
+              className="mt-5 w-full rounded-full bg-primary px-5 py-3 text-sm font-medium text-primary-foreground shadow-sm transition hover:opacity-90"
+            >
+              Connect
+            </button>
+          )}
 
           {!!localSocial.instagram_detail?.username && (
             <div className="mt-2 text-xs text-muted-foreground">
@@ -299,11 +532,49 @@ export default function ConnectClient({
         </div>
 
         {/* Facebook */}
-        <PlatformCard
-          title="Facebook"
-          desc="Pages + scheduled posting"
-          onClick={() => router.push("/connect/facebook")}
-        />
+        <div className="rounded-3xl border border-border bg-background p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-lg font-semibold">Facebook</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Pages + scheduled posting
+              </p>
+            </div>
+
+            {/* ✅ SINGLE status badge here (uses optimistic flag too) */}
+            <span
+              className={`mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
+                isFacebookConnected
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {isFacebookConnected ? "Connected" : "Not connected"}
+            </span>
+          </div>
+
+          {isFacebookConnected ? (
+            <button
+              onClick={onFacebookDisconnect}
+              className="mt-5 w-full rounded-full bg-red-600 px-5 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90"
+            >
+              Disconnect
+            </button>
+          ) : (
+            <button
+              onClick={onFacebookConnect}
+              className="mt-5 w-full rounded-full bg-primary px-5 py-3 text-sm font-medium text-primary-foreground shadow-sm transition hover:opacity-90"
+            >
+              Connect
+            </button>
+          )}
+
+          {!!localSocial.facebook_detail?.page_name && (
+            <div className="mt-2 text-xs text-muted-foreground">
+              Page: {localSocial.facebook_detail.page_name}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="mt-8 text-xs text-muted-foreground">
@@ -313,26 +584,10 @@ export default function ConnectClient({
   );
 }
 
-function PlatformCard({
-  title,
-  desc,
-  onClick,
-}: {
-  title: string;
-  desc: string;
-  onClick: () => void;
-}) {
+function Badge({ label }: { label: string }) {
   return (
-    <div className="rounded-3xl border border-border bg-background p-6">
-      <p className="text-lg font-semibold">{title}</p>
-      <p className="mt-2 text-sm text-muted-foreground">{desc}</p>
-
-      <button
-        onClick={onClick}
-        className="mt-5 w-full rounded-full bg-primary px-5 py-3 text-sm font-medium text-primary-foreground shadow-sm transition hover:opacity-90"
-      >
-        Connect
-      </button>
-    </div>
+    <span className="inline-flex items-center rounded-full border border-border bg-card px-3 py-1 text-xs font-medium">
+      {label}
+    </span>
   );
 }

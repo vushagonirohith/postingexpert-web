@@ -1,14 +1,14 @@
-//src/app/connect/linkedin/LinkedInConnectClient.tsx
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 type ConnectionDetail = {
   posting_method?: string;
   organization_count?: number;
   has_org_access?: boolean;
-  user_urn?: string;
+  person_urn?: string;
   org_urn?: string;
+  connected_at?: string;
 };
 
 type ConnectionDetailsProp = {
@@ -29,14 +29,13 @@ type LinkedInCallbackMessage = {
 
 type Props = {
   appUser: string;
-  onConnected: () => void;
-  connected: boolean;
+  onConnected: () => void; // refreshSocial in parent
+  connected: boolean; // from backend status
   connectionDetails?: ConnectionDetailsProp | null;
 
-  // UI options for your card button
-  fullWidth?: boolean; // default true
-  connectLabel?: string; // default "Connect"
-  disconnectLabel?: string; // default "Disconnect"
+  fullWidth?: boolean;
+  connectLabel?: string;
+  disconnectLabel?: string;
 };
 
 const API_BASE = (
@@ -60,52 +59,60 @@ export default function LinkedInConnectClient({
   disconnectLabel = "Disconnect",
 }: Props) {
   const [isConnecting, setIsConnecting] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<null | {
-    success: boolean;
-    posting_method?: string;
-    organization_count?: number;
-    has_org_access?: boolean;
-    person_urn?: string;
-    org_urn?: string;
-    message?: string;
-    error?: string;
-  }>(null);
+  const [lastMessage, setLastMessage] = useState<string | null>(null);
+  const [lastError, setLastError] = useState<string | null>(null);
+
+  // ✅ UI-only: temporary connected state after success callback
+  const [uiConnected, setUiConnected] = useState(false);
+
+  const detail = connectionDetails?.detail || null;
+
+  // ✅ effective connected = backend OR uiConnected
+  const isConnected = connected || uiConnected;
+
+  const modeLabel = useMemo(() => {
+    if (!isConnected) return null;
+    const m = (detail?.posting_method || "").toLowerCase();
+    if (m.includes("org") || detail?.org_urn) return "Organization / Page";
+    return detail?.posting_method || "Personal Profile";
+  }, [isConnected, detail?.posting_method, detail?.org_urn]);
+
+  // If backend finally confirms connected, keep UI connected
+  useEffect(() => {
+    if (connected) setUiConnected(false); // backend is truth now
+    if (!isConnected) setLastMessage(null);
+  }, [connected, isConnected]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      const data = event.data as LinkedInCallbackMessage;
-      if (!data || data.type !== "linkedin_callback") return;
+      let data: any = event.data;
+
+      // accept stringified json also
+      if (typeof data === "string") {
+        try {
+          data = JSON.parse(data);
+        } catch {
+          return;
+        }
+      }
+
+      const msg = data as LinkedInCallbackMessage;
+      if (!msg || msg.type !== "linkedin_callback") return;
 
       setIsConnecting(false);
 
-      if (data.success) {
-        const {
-          posting_method,
-          organization_count,
-          has_org_access,
-          person_urn,
-          org_urn,
-          message,
-        } = data;
+      if (msg.success) {
+        setLastError(null);
+        setLastMessage(msg.message || "LinkedIn connected successfully!");
 
-        setConnectionStatus({
-          success: true,
-          posting_method,
-          organization_count: organization_count || 0,
-          has_org_access: has_org_access || false,
-          person_urn,
-          org_urn,
-          message: message || "Connected successfully",
-        });
+        // ✅ UI-only: show as connected immediately
+        setUiConnected(true);
 
-        alert(message || "LinkedIn connected successfully!");
-        onConnected();
+        onConnected(); // refreshSocial() in parent
       } else {
-        setConnectionStatus({
-          success: false,
-          error: data.error || "Unknown error",
-        });
-        alert(`LinkedIn connection failed: ${data.error || "Unknown error"}`);
+        setLastMessage(null);
+        setLastError(msg.error || "LinkedIn connect failed");
+        setUiConnected(false);
       }
     };
 
@@ -121,7 +128,9 @@ export default function LinkedInConnectClient({
     }
 
     setIsConnecting(true);
-    setConnectionStatus(null);
+    setLastMessage(null);
+    setLastError(null);
+    setUiConnected(false);
 
     const redirectUri = encodeURIComponent(LINKEDIN_REDIRECT_URI);
 
@@ -147,7 +156,7 @@ export default function LinkedInConnectClient({
     const popup = window.open(
       url,
       "linkedin-auth",
-      "width=600,height=700,scrollbars=yes,resizable=yes"
+      "width=600,height=720,scrollbars=yes,resizable=yes"
     );
 
     if (!popup) {
@@ -160,9 +169,9 @@ export default function LinkedInConnectClient({
       if (popup.closed) {
         window.clearInterval(checkClosed);
         setIsConnecting(false);
-        setTimeout(() => onConnected(), 800);
+        setTimeout(() => onConnected(), 700);
       }
-    }, 1000);
+    }, 800);
   };
 
   const handleDisconnect = async () => {
@@ -170,6 +179,8 @@ export default function LinkedInConnectClient({
 
     try {
       setIsConnecting(true);
+      setLastMessage(null);
+      setLastError(null);
 
       const token = localStorage.getItem("token");
       if (!token) {
@@ -192,66 +203,86 @@ export default function LinkedInConnectClient({
 
       const result = await res.json().catch(() => ({}));
 
-      if (res.status === 401 && (result as any)?.token_expired) {
-        localStorage.removeItem("token");
-        alert("Your session has expired. Please login again.");
-        window.location.href = "/login";
-        return;
-      }
-
       if (res.ok && (result as any)?.success) {
-        setConnectionStatus(null);
-        alert("LinkedIn disconnected successfully!");
+        setUiConnected(false); // ✅ UI immediate
+        setLastMessage("LinkedIn disconnected successfully!");
+        setLastError(null);
         onConnected();
       } else {
-        const errorMessage =
+        const err =
           (result as any)?.error ||
           (result as any)?.message ||
-          "Unknown error occurred";
-        alert(`Failed to disconnect LinkedIn: ${errorMessage}`);
+          "Failed to disconnect.";
+        setLastError(err);
       }
-    } catch (err: any) {
-      alert(`Error disconnecting LinkedIn: ${err?.message || "Unknown error"}`);
+    } catch (e: any) {
+      setLastError(e?.message || "Unknown error");
     } finally {
       setIsConnecting(false);
     }
   };
 
   const btnLabel = isConnecting
-    ? connected
+    ? isConnected
       ? "Disconnecting..."
       : "Connecting..."
-    : connected
+    : isConnected
     ? disconnectLabel
     : connectLabel;
 
-  // Optional info (kept minimal)
-  const info = (() => {
-    const d = connectionDetails?.detail;
-    if (!connected || !d) return null;
-    return (
-      <div className="mt-2 text-xs text-muted-foreground">
-        {d.posting_method ? (
-          <div>
-            <span className="font-semibold">Mode:</span> {d.posting_method}
-          </div>
+  return (
+    <div className="mt-5">
+      {/* ✅ Top status row (only one badge) */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
+              isConnected
+                ? "bg-emerald-100 text-emerald-800"
+                : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {isConnected ? "Connected" : "Not connected"}
+          </span>
+
+          {isConnected && modeLabel ? (
+            <span className="text-xs text-muted-foreground">• {modeLabel}</span>
+          ) : null}
+        </div>
+
+        {/* ✅ Disconnect on top when connected */}
+        {isConnected ? (
+          <button
+            onClick={handleDisconnect}
+            disabled={isConnecting}
+            className="text-xs font-medium text-red-600 hover:underline disabled:opacity-60"
+          >
+            Disconnect
+          </button>
         ) : null}
       </div>
-    );
-  })();
 
-  return (
-    <div>
+      {/* ✅ Detail box only when connected */}
+      {isConnected && detail ? (
+        <div className="mt-3 rounded-2xl border border-border bg-card p-3 text-xs">
+          <div className="grid grid-cols-1 gap-2">
+            {detail.person_urn ? <Row label="Person URN" value={detail.person_urn} /> : null}
+            {detail.org_urn ? <Row label="Org URN" value={detail.org_urn} /> : null}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Main button */}
       <button
-        onClick={connected ? handleDisconnect : handleConnect}
+        onClick={isConnected ? handleDisconnect : handleConnect}
         disabled={isConnecting}
         className={
           fullWidth
-            ? "mt-5 w-full rounded-full px-5 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:opacity-70"
-            : "rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-70"
+            ? "mt-4 w-full rounded-full px-5 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:opacity-70"
+            : "mt-4 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-70"
         }
         style={{
-          backgroundColor: connected ? "#dc3545" : "#8b7bff",
+          backgroundColor: isConnected ? "#dc3545" : "#8b7bff",
           cursor: isConnecting ? "not-allowed" : "pointer",
           border: "none",
         }}
@@ -259,19 +290,29 @@ export default function LinkedInConnectClient({
         {btnLabel}
       </button>
 
-      {info}
-
-      {connectionStatus && !connectionStatus.success && (
-        <div
-          className="mt-2 rounded p-2 text-xs"
-          style={{
-            backgroundColor: "#f8d7da",
-            color: "#721c24",
-          }}
-        >
-          <strong>Failed:</strong> {connectionStatus.error}
+      {/* message/error */}
+      {lastMessage ? (
+        <div className="mt-2 rounded-2xl border border-border bg-background p-2 text-xs">
+          ✅ {lastMessage}
         </div>
-      )}
+      ) : null}
+
+      {lastError ? (
+        <div className="mt-2 rounded-2xl border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+          ❌ {lastError}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="max-w-[70%] select-all break-all text-right font-medium">
+        {value}
+      </span>
     </div>
   );
 }
