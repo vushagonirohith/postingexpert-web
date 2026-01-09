@@ -7,7 +7,7 @@ import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
 import { saveAuth } from "@/lib/auth";
 
-// ✅ CHANGED: use your shared api helper (env-based, starts EC2 via gateway)
+// ✅ use your shared api helper (env-based, starts EC2 via gateway)
 import { apiFetch, API_BASE } from "@/lib/api";
 
 // ---- constants ----
@@ -51,6 +51,402 @@ const FREQUENCY = [
 type Tone = (typeof TONES)[number]["value"];
 type Frequency = (typeof FREQUENCY)[number]["value"];
 
+type QuestionType = "text" | "textarea" | "checkbox" | "radio";
+type Question = {
+  id: string;
+  question: string;
+  type: QuestionType;
+  placeholder?: string;
+  hint?: string;
+  options?: string[];
+  required?: boolean;
+};
+
+// ✅ IMPORTANT questions from old Survey.js (industry-specific)
+const INDUSTRY_QUESTIONS: Record<string, Question[]> = {
+  Finance: [
+    {
+      id: "financial_products",
+      question: "What financial products/services do you offer?",
+      type: "textarea",
+      placeholder: "e.g., Loans, Investment, Insurance...",
+      hint: "Be specific about your main offerings",
+      required: true,
+    },
+    {
+      id: "target_audience",
+      question: "Who is your target audience?",
+      type: "text",
+      placeholder: "e.g., individuals, businesses, investors",
+      hint: "This helps us tailor your content",
+      required: true,
+    },
+    {
+      id: "social_tone",
+      question: "What tone should your content convey?",
+      type: "checkbox",
+      options: ["Trustworthy", "Professional", "Approachable"],
+      hint: "You can select multiple",
+    },
+    {
+      id: "image_focus",
+      question: "What should your visuals emphasize?",
+      type: "checkbox",
+      options: ["Trust and security", "Growth and success", "Expert advice"],
+    },
+    {
+      id: "visual_style",
+      question: "Visual style preference:",
+      type: "checkbox",
+      options: ["Professional corporate settings", "Personal customer stories"],
+    },
+    {
+      id: "include_data_visuals",
+      question: "Include infographics or data visualizations?",
+      type: "radio",
+      options: ["Yes", "No", "Sometimes"],
+    },
+  ],
+
+  EdTech: [
+    {
+      id: "educational_services",
+      question: "What educational programs do you offer?",
+      type: "textarea",
+      placeholder: "Describe your courses, degrees, training...",
+      hint: "Help us understand your offerings",
+      required: true,
+    },
+    {
+      id: "primary_audience",
+      question: "Who are your primary audiences?",
+      type: "checkbox",
+      options: ["Students", "Parents", "Faculty", "Alumni", "Community"],
+      required: true,
+    },
+    {
+      id: "key_messages",
+      question: "Key messages about your institution:",
+      type: "textarea",
+      placeholder: "What makes your institution special?",
+      required: true,
+    },
+    {
+      id: "image_showcase",
+      question: "What should visuals showcase?",
+      type: "checkbox",
+      options: ["Student achievements", "Campus life", "Faculty expertise"],
+    },
+    {
+      id: "learning_format",
+      question: "Highlight which format?",
+      type: "checkbox",
+      options: ["In-person activities", "Online learning platforms"],
+    },
+    {
+      id: "feature_content",
+      question: "Feature in your content:",
+      type: "checkbox",
+      options: ["Events", "Guest lectures", "Community involvement"],
+    },
+  ],
+
+  SaaS: [
+    {
+      id: "tech_products",
+      question: "Main tech products/services:",
+      type: "textarea",
+      placeholder: "SaaS, Hardware, Apps, Consulting...",
+      hint: "What technology solutions do you provide?",
+      required: true,
+    },
+    {
+      id: "target_audience",
+      question: "Target audience:",
+      type: "checkbox",
+      options: ["Tech professionals", "Consumers", "Businesses", "Startups", "Enterprise"],
+      required: true,
+    },
+    {
+      id: "brand_values",
+      question: "Brand values to convey:",
+      type: "checkbox",
+      options: ["Innovation", "Reliability", "User-friendliness", "Cutting-edge", "Trustworthy"],
+    },
+    {
+      id: "design_preference",
+      question: "Design style preference:",
+      type: "checkbox",
+      options: ["Futuristic, sleek designs", "Practical, real-world visuals"],
+    },
+    {
+      id: "image_focus",
+      question: "Image focus:",
+      type: "checkbox",
+      options: ["Product demonstrations", "Conceptual innovation"],
+    },
+    {
+      id: "include_interactive_content",
+      question: "Include animated/interactive visuals?",
+      type: "radio",
+      options: ["Yes", "No", "Sometimes"],
+    },
+  ],
+
+  "Real Estate": [
+    {
+      id: "property_specialization",
+      question: "Property specialization:",
+      type: "checkbox",
+      options: ["Residential", "Commercial", "Luxury", "Rental", "Investment"],
+      required: true,
+    },
+    {
+      id: "main_clients",
+      question: "Main clients:",
+      type: "checkbox",
+      options: ["Buyers", "Renters", "Investors", "First-time buyers", "Commercial clients"],
+      required: true,
+    },
+    {
+      id: "selling_points",
+      question: "Key selling points:",
+      type: "textarea",
+      placeholder: "Location, pricing, amenities...",
+      required: true,
+    },
+    {
+      id: "image_showcase",
+      question: "Showcase in visuals:",
+      type: "checkbox",
+      options: ["Property interiors", "Neighborhood lifestyles", "Renovations"],
+    },
+    {
+      id: "feature_client_stories",
+      question: "Feature client testimonials?",
+      type: "radio",
+      options: ["Yes", "No", "Sometimes"],
+    },
+  ],
+
+  Healthcare: [
+    {
+      id: "healthcare_services",
+      question: "Healthcare services/specialties:",
+      type: "textarea",
+      placeholder: "General care, Surgery, Pediatrics...",
+      hint: "List your main services",
+      required: true,
+    },
+    {
+      id: "primary_audience",
+      question: "Primary audience:",
+      type: "checkbox",
+      options: ["Patients", "Families", "Healthcare professionals", "Community", "Insurance providers"],
+      required: true,
+    },
+    {
+      id: "core_values",
+      question: "Core values to communicate:",
+      type: "checkbox",
+      options: ["Trust", "Care", "Innovation", "Expertise", "Compassion"],
+    },
+    {
+      id: "image_highlight",
+      question: "Highlight in images:",
+      type: "checkbox",
+      options: ["Medical staff", "Patient care", "Healthcare technology"],
+    },
+    {
+      id: "visual_focus",
+      question: "Visual focus:",
+      type: "checkbox",
+      options: ["Wellness campaigns", "Testimonials", "Facilities"],
+    },
+    {
+      id: "include_treatment_visuals",
+      question: "Include treatment visuals/case studies?",
+      type: "radio",
+      options: ["Yes", "No", "With patient consent only"],
+    },
+  ],
+
+  "D2C / E-commerce": [
+    {
+      id: "product_types",
+      question: "Main product categories:",
+      type: "textarea",
+      placeholder: "Fashion, Electronics, Home goods...",
+      hint: "What do you sell?",
+      required: true,
+    },
+    {
+      id: "main_customers",
+      question: "Main customer segments:",
+      type: "text",
+      placeholder: "Young adults, professionals, families...",
+      required: true,
+    },
+    {
+      id: "brand_personality",
+      question: "Brand personality:",
+      type: "checkbox",
+      options: ["Fun", "Professional", "Creative", "Trendy", "Trustworthy"],
+    },
+    {
+      id: "image_style",
+      question: "Image style:",
+      type: "checkbox",
+      options: ["Product-focused images", "Lifestyle shots"],
+    },
+    {
+      id: "content_highlight",
+      question: "Highlight in content:",
+      type: "checkbox",
+      options: ["Seasonal sales", "New arrivals", "Behind-the-scenes"],
+    },
+    {
+      id: "ugc_strategy",
+      question: "User-generated content strategy?",
+      type: "radio",
+      options: ["Yes", "No", "Considering it"],
+    },
+  ],
+
+  "Restaurant / Cafe": [
+    {
+      id: "cuisine_experience",
+      question: "Cuisine & dining experience:",
+      type: "textarea",
+      placeholder: "Italian fine dining, casual cafe...",
+      hint: "Describe your restaurant concept",
+      required: true,
+    },
+    {
+      id: "typical_customers",
+      question: "Typical customers:",
+      type: "text",
+      placeholder: "Families, couples, business professionals...",
+      required: true,
+    },
+    {
+      id: "unique_qualities",
+      question: "Unique qualities/atmosphere:",
+      type: "textarea",
+      placeholder: "What makes your restaurant special?",
+      required: true,
+    },
+    {
+      id: "image_preference",
+      question: "Image preferences:",
+      type: "checkbox",
+      options: ["Food presentation", "Dining ambiance", "Kitchen activity"],
+    },
+    {
+      id: "content_highlight",
+      question: "Highlight in content:",
+      type: "checkbox",
+      options: ["Seasonal menus", "Special events", "Customer interactions"],
+    },
+    {
+      id: "sustainability",
+      question: "Promote sustainable sourcing/dietary options?",
+      type: "radio",
+      options: ["Yes", "No", "Sometimes"],
+    },
+  ],
+
+  Agency: [
+    {
+      id: "agency_services",
+      question: "What services do you offer?",
+      type: "textarea",
+      placeholder: "Branding, social media, ads, web dev...",
+      required: true,
+    },
+    {
+      id: "client_types",
+      question: "What types of clients do you serve?",
+      type: "text",
+      placeholder: "Startups, local businesses, enterprise...",
+      required: true,
+    },
+    {
+      id: "deliverables_focus",
+      question: "What should your content highlight most?",
+      type: "checkbox",
+      options: ["Case studies / results", "Offers & packages", "Behind-the-scenes", "Client testimonials"],
+    },
+  ],
+
+  Fitness: [
+    {
+      id: "fitness_services",
+      question: "What fitness services do you offer?",
+      type: "textarea",
+      placeholder: "Gym, personal training, yoga, online coaching...",
+      required: true,
+    },
+    {
+      id: "fitness_audience",
+      question: "Who is your target audience?",
+      type: "text",
+      placeholder: "Beginners, athletes, weight loss, seniors...",
+      required: true,
+    },
+    {
+      id: "fitness_content_focus",
+      question: "What should content highlight?",
+      type: "checkbox",
+      options: ["Transformations", "Workout tips", "Nutrition", "Offers", "Community"],
+    },
+  ],
+
+  Other: [
+    {
+      id: "business_description",
+      question: "Business type & description:",
+      type: "textarea",
+      placeholder: "Tell us about your business...",
+      hint: "Be as detailed as possible",
+      required: true,
+    },
+    {
+      id: "target_audience",
+      question: "Target audience:",
+      type: "text",
+      placeholder: "Who are your customers?",
+      required: true,
+    },
+    {
+      id: "key_messages",
+      question: "Key messages/values:",
+      type: "textarea",
+      placeholder: "What do you want to communicate?",
+      hint: "Your brand message",
+      required: true,
+    },
+    {
+      id: "image_style",
+      question: "Preferred image style:",
+      type: "checkbox",
+      options: ["Professional", "Casual", "Artistic", "Modern", "Traditional"],
+    },
+    {
+      id: "visual_focus",
+      question: "Visual focus:",
+      type: "checkbox",
+      options: ["Products", "Services", "Customer stories"],
+    },
+    {
+      id: "preferred_themes",
+      question: "Preferred colors/moods/themes:",
+      type: "textarea",
+      placeholder: "Describe your visual preferences...",
+    },
+  ],
+};
+
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
@@ -71,9 +467,6 @@ function emailLooksValid(email: string) {
 function usernameLooksValid(u: string) {
   return /^[a-zA-Z0-9_]{3,}$/.test(u.trim());
 }
-
-// ❌ REMOVED: FALLBACK_PROD + postJson helper
-// ✅ Now everything uses apiFetch() from src/lib/api.js (env-based)
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -98,7 +491,7 @@ export default function RegisterPage() {
     scrollRef.current?.scrollTo({ top: 0 });
   }, [step]);
 
-  // ✅ ADDED: warmup to start EC2 via API Gateway/Lambda (safe if endpoint doesn't exist)
+  // ✅ warmup to start EC2 via API Gateway/Lambda (safe if endpoint doesn't exist)
   useEffect(() => {
     (async () => {
       try {
@@ -138,6 +531,9 @@ export default function RegisterPage() {
     // logo
     logoFile: null as File | null,
     logoPreview: "" as string, // base64 data-url
+
+    // ✅ NEW: industry-specific answers (old Survey.js important questions)
+    surveyExtras: {} as Record<string, any>,
   });
 
   const [loading, setLoading] = useState(false);
@@ -145,6 +541,12 @@ export default function RegisterPage() {
   const [successMsg, setSuccessMsg] = useState<string>("");
 
   const goalsCount = form.goals.length;
+
+  // ✅ active questions by industry
+  const activeIndustryQuestions = useMemo(() => {
+    const key = String(form.industry);
+    return INDUSTRY_QUESTIONS[key] || INDUSTRY_QUESTIONS["Other"] || [];
+  }, [form.industry]);
 
   // ---- handlers ----
   const toggleGoal = (goal: string) => {
@@ -193,6 +595,23 @@ export default function RegisterPage() {
     });
   };
 
+  // ✅ NEW: extras handlers
+  const setExtra = (id: string, value: any) => {
+    setForm((p) => ({
+      ...p,
+      surveyExtras: { ...(p.surveyExtras || {}), [id]: value },
+    }));
+  };
+
+  const toggleExtraCheckbox = (id: string, option: string) => {
+    setForm((p) => {
+      const current = (p.surveyExtras?.[id] || []) as string[];
+      const exists = current.includes(option);
+      const next = exists ? current.filter((x) => x !== option) : [...current, option];
+      return { ...p, surveyExtras: { ...p.surveyExtras, [id]: next } };
+    });
+  };
+
   // ---- step validation ----
   const stepValid = useMemo(() => {
     if (step === 0) {
@@ -215,6 +634,21 @@ export default function RegisterPage() {
       if (form.goals.length < 1) return false;
       if (!form.frequency) return false;
       if (!form.postScheduleTime) return false;
+
+      // ✅ NEW: validate required industry questions
+      const requiredQs = activeIndustryQuestions.filter((q) => q.required);
+      for (const q of requiredQs) {
+        const v = (form.surveyExtras || {})[q.id];
+        const ok =
+          q.type === "checkbox"
+            ? Array.isArray(v) && v.length > 0
+            : typeof v === "string"
+            ? v.trim().length > 0
+            : v != null;
+
+        if (!ok) return false;
+      }
+
       return true;
     }
 
@@ -226,7 +660,7 @@ export default function RegisterPage() {
     if (step === 4) return true;
 
     return false;
-  }, [step, form]);
+  }, [step, form, activeIndustryQuestions]);
 
   const goNext = () => {
     setErrorMsg("");
@@ -263,10 +697,24 @@ export default function RegisterPage() {
       form.brandName.trim().length < 2 ||
       form.goals.length < 1
     ) {
-      setErrorMsg(
-        "Some required fields are missing. Please go back and complete all steps."
-      );
+      setErrorMsg("Some required fields are missing. Please go back and complete all steps.");
       return;
+    }
+
+    // ✅ also enforce required industry questions at submit
+    const requiredQs = activeIndustryQuestions.filter((q) => q.required);
+    for (const q of requiredQs) {
+      const v = (form.surveyExtras || {})[q.id];
+      const ok =
+        q.type === "checkbox"
+          ? Array.isArray(v) && v.length > 0
+          : typeof v === "string"
+          ? v.trim().length > 0
+          : v != null;
+      if (!ok) {
+        setErrorMsg("Please complete the required business detail questions.");
+        return;
+      }
     }
 
     setLoading(true);
@@ -281,14 +729,12 @@ export default function RegisterPage() {
         confirmPassword: form.confirmPassword,
       };
 
-      // ✅ CHANGED: postJson -> apiFetch
       const reg: any = await apiFetch("/user/register", {
         method: "POST",
         body: registerPayload,
       });
 
-      const token =
-        reg?.token || reg?.access_token || reg?.jwt || reg?.data?.token;
+      const token = reg?.token || reg?.access_token || reg?.jwt || reg?.data?.token;
 
       localStorage.setItem("registeredUserId", form.username.trim());
       localStorage.setItem("username", form.username.trim());
@@ -303,7 +749,6 @@ export default function RegisterPage() {
       }
 
       // 2) SAVE SURVEY / ONBOARDING DATA using SAME endpoint (/user/register)
-      // ✅ Must match your backend contract exactly: { surveyData: { userId, businessType, answers, timestamp } }
       const colors = form.colors.slice(0, form.numColors);
 
       const answers: Record<string, any> = {
@@ -328,18 +773,20 @@ export default function RegisterPage() {
               data: form.logoPreview, // data-url (your backend already strips prefix)
             }
           : null,
+
+        // ✅ NEW: include old Survey.js "important questions"
+        ...form.surveyExtras,
       };
 
       const surveyPayload = {
         surveyData: {
-          userId: form.username.trim(), // backend uses this as partition key
-          businessType: form.industry, // backend stores as business_type
+          userId: form.username.trim(),
+          businessType: form.industry,
           answers,
           timestamp: String(Math.floor(Date.now() / 1000)),
         },
       };
 
-      // ✅ CHANGED: postJson -> apiFetch
       await apiFetch("/user/register", {
         method: "POST",
         body: surveyPayload,
@@ -379,15 +826,13 @@ export default function RegisterPage() {
           <div className="grid grid-cols-1 gap-10 md:grid-cols-2 md:items-start">
             {/* LEFT */}
             <div className="max-w-xl">
-              <p className="text-sm text-muted-foreground">
-                PostingExpert • Signup
-              </p>
+              <p className="text-sm text-muted-foreground">PostingExpert • Signup</p>
               <h1 className="mt-4 text-3xl font-semibold tracking-tight md:text-5xl">
                 Create your workspace in minutes.
               </h1>
               <p className="mt-5 text-muted-foreground">
-                We’ll collect the details once — then PostingExpert can generate
-                content that matches your brand and schedule automatically.
+                We’ll collect the details once — then PostingExpert can generate content that matches your brand and
+                schedule automatically.
               </p>
 
               <div className="mt-8 rounded-2xl border border-border bg-card p-6 shadow-sm">
@@ -417,9 +862,7 @@ export default function RegisterPage() {
                         onClick={() => setStep(idx)}
                         className={[
                           "flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm transition",
-                          active
-                            ? "border-primary/40 bg-primary/10"
-                            : "border-border bg-background hover:bg-muted",
+                          active ? "border-primary/40 bg-primary/10" : "border-border bg-background hover:bg-muted",
                         ].join(" ")}
                       >
                         <span className="flex items-center gap-2">
@@ -437,17 +880,14 @@ export default function RegisterPage() {
                           </span>
                           {s.title}
                         </span>
-                        <span className="text-xs text-muted-foreground">
-                          {done ? "Done" : active ? "Current" : ""}
-                        </span>
+                        <span className="text-xs text-muted-foreground">{done ? "Done" : active ? "Current" : ""}</span>
                       </button>
                     );
                   })}
                 </div>
 
                 <p className="mt-4 text-xs text-muted-foreground">
-                  Tip: You can click steps to jump — but “Next” validates inputs
-                  so nothing gets missed.
+                  Tip: You can click steps to jump — but “Next” validates inputs so nothing gets missed.
                 </p>
               </div>
             </div>
@@ -456,9 +896,7 @@ export default function RegisterPage() {
             <div className="rounded-3xl border border-border bg-card shadow-sm md:p-8 flex flex-col h-[720px] overflow-hidden">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-medium text-foreground">
-                    {STEPS[step]?.title}
-                  </p>
+                  <p className="text-sm font-medium text-foreground">{STEPS[step]?.title}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Step {step + 1} of {STEPS.length}
                   </p>
@@ -482,9 +920,7 @@ export default function RegisterPage() {
                       disabled={!stepValid}
                       className={[
                         "rounded-full px-5 py-2 text-sm font-medium shadow-sm transition",
-                        stepValid
-                          ? "bg-primary text-primary-foreground hover:opacity-90"
-                          : "bg-muted text-muted-foreground cursor-not-allowed",
+                        stepValid ? "bg-primary text-primary-foreground hover:opacity-90" : "bg-muted text-muted-foreground cursor-not-allowed",
                       ].join(" ")}
                     >
                       Next →
@@ -513,17 +949,10 @@ export default function RegisterPage() {
                     <div className="min-w-full px-3">
                       <div className="pr-2 space-y-4">
                         <div>
-                          <label className="text-xs text-muted-foreground">
-                            Full name
-                          </label>
+                          <label className="text-xs text-muted-foreground">Full name</label>
                           <input
                             value={form.fullName}
-                            onChange={(e) =>
-                              setForm((p) => ({
-                                ...p,
-                                fullName: e.target.value,
-                              }))
-                            }
+                            onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))}
                             className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
                             placeholder="Your full name"
                             autoComplete="name"
@@ -531,99 +960,66 @@ export default function RegisterPage() {
                         </div>
 
                         <div>
-                          <label className="text-xs text-muted-foreground">
-                            Email
-                          </label>
+                          <label className="text-xs text-muted-foreground">Email</label>
                           <input
                             value={form.email}
-                            onChange={(e) =>
-                              setForm((p) => ({ ...p, email: e.target.value }))
-                            }
+                            onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
                             className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
                             placeholder="you@company.com"
                             autoComplete="email"
                           />
                           {!form.email ? null : emailLooksValid(form.email) ? null : (
-                            <p className="mt-2 text-xs text-destructive">
-                              Please enter a valid email.
-                            </p>
+                            <p className="mt-2 text-xs text-destructive">Please enter a valid email.</p>
                           )}
                         </div>
 
                         <div>
-                          <label className="text-xs text-muted-foreground">
-                            Username
-                          </label>
+                          <label className="text-xs text-muted-foreground">Username</label>
                           <input
                             value={form.username}
-                            onChange={(e) =>
-                              setForm((p) => ({
-                                ...p,
-                                username: e.target.value,
-                              }))
-                            }
+                            onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))}
                             className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
                             placeholder="e.g. Vishakha"
                             autoComplete="username"
                           />
                           {!form.username ? (
                             <p className="mt-2 text-xs text-muted-foreground">
-                              Letters, numbers, underscores only. Min 3
-                              characters.
+                              Letters, numbers, underscores only. Min 3 characters.
                             </p>
                           ) : usernameLooksValid(form.username) ? null : (
                             <p className="mt-2 text-xs text-destructive">
-                              Username must be 3+ chars and only
-                              letters/numbers/_.
+                              Username must be 3+ chars and only letters/numbers/_.
                             </p>
                           )}
                         </div>
 
                         <div>
-                          <label className="text-xs text-muted-foreground">
-                            Password
-                          </label>
+                          <label className="text-xs text-muted-foreground">Password</label>
                           <input
                             type="password"
                             value={form.password}
-                            onChange={(e) =>
-                              setForm((p) => ({
-                                ...p,
-                                password: e.target.value,
-                              }))
-                            }
+                            onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
                             className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
                             placeholder="••••••••"
                             autoComplete="new-password"
                           />
                           {!form.password ? null : form.password.length >= 6 ? null : (
-                            <p className="mt-2 text-xs text-destructive">
-                              Password must be at least 6 characters.
-                            </p>
+                            <p className="mt-2 text-xs text-destructive">Password must be at least 6 characters.</p>
                           )}
                         </div>
 
                         <div>
-                          <label className="text-xs text-muted-foreground">
-                            Confirm password
-                          </label>
+                          <label className="text-xs text-muted-foreground">Confirm password</label>
                           <input
                             type="password"
                             value={form.confirmPassword}
-                            onChange={(e) =>
-                              setForm((p) => ({
-                                ...p,
-                                confirmPassword: e.target.value,
-                              }))
-                            }
+                            onChange={(e) => setForm((p) => ({ ...p, confirmPassword: e.target.value }))}
                             className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
                             placeholder="••••••••"
                             autoComplete="new-password"
                           />
                           {!form.confirmPassword ? null : form.password === form.confirmPassword ? null : (
-                            <p className="mt-2 text-xs text-destructive">
-                              Passwords do not match.
-                            </p>
+                            <p className="mt-2 text-xs text-destructive">Passwords do not match.</p>
                           )}
                         </div>
                       </div>
@@ -633,32 +1029,25 @@ export default function RegisterPage() {
                     <div className="min-w-full px-3">
                       <div className="h-full overflow-y-auto pr-2 space-y-5">
                         <div>
-                          <label className="text-xs text-muted-foreground">
-                            Brand name
-                          </label>
+                          <label className="text-xs text-muted-foreground">Brand name</label>
                           <input
                             value={form.brandName}
-                            onChange={(e) =>
-                              setForm((p) => ({
-                                ...p,
-                                brandName: e.target.value,
-                              }))
-                            }
+                            onChange={(e) => setForm((p) => ({ ...p, brandName: e.target.value }))}
                             className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
                             placeholder="e.g., Posting Expert"
                           />
                         </div>
 
                         <div>
-                          <label className="text-xs text-muted-foreground">
-                            Industry
-                          </label>
+                          <label className="text-xs text-muted-foreground">Industry</label>
                           <select
                             value={form.industry}
                             onChange={(e) =>
                               setForm((p) => ({
                                 ...p,
                                 industry: e.target.value as any,
+                                // reset extras when industry changes (optional but clean)
+                                surveyExtras: {},
                               }))
                             }
                             className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
@@ -672,9 +1061,7 @@ export default function RegisterPage() {
                         </div>
 
                         <div>
-                          <label className="text-xs text-muted-foreground">
-                            Brand tone
-                          </label>
+                          <label className="text-xs text-muted-foreground">Brand tone</label>
                           <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {TONES.map((t) => {
                               const active = form.tone === t.value;
@@ -682,14 +1069,10 @@ export default function RegisterPage() {
                                 <button
                                   key={t.value}
                                   type="button"
-                                  onClick={() =>
-                                    setForm((p) => ({ ...p, tone: t.value }))
-                                  }
+                                  onClick={() => setForm((p) => ({ ...p, tone: t.value }))}
                                   className={[
                                     "rounded-2xl border px-4 py-3 text-left text-sm transition",
-                                    active
-                                      ? "border-primary/40 bg-primary/10"
-                                      : "border-border bg-background hover:bg-muted",
+                                    active ? "border-primary/40 bg-primary/10" : "border-border bg-background hover:bg-muted",
                                   ].join(" ")}
                                 >
                                   {t.label}
@@ -705,9 +1088,7 @@ export default function RegisterPage() {
                     <div className="min-w-full px-3">
                       <div className="h-full overflow-y-auto pr-2 space-y-4">
                         <div>
-                          <label className="text-xs text-muted-foreground">
-                            Content goals (choose up to 3)
-                          </label>
+                          <label className="text-xs text-muted-foreground">Content goals (choose up to 3)</label>
                           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                             {GOALS.map((g) => {
                               const active = form.goals.includes(g);
@@ -720,9 +1101,7 @@ export default function RegisterPage() {
                                   disabled={disabled}
                                   className={[
                                     "rounded-2xl border px-4 py-3 text-left text-sm transition",
-                                    active
-                                      ? "border-primary/40 bg-primary/10"
-                                      : "border-border bg-background hover:bg-muted",
+                                    active ? "border-primary/40 bg-primary/10" : "border-border bg-background hover:bg-muted",
                                     disabled ? "cursor-not-allowed opacity-50" : "",
                                   ].join(" ")}
                                 >
@@ -731,17 +1110,99 @@ export default function RegisterPage() {
                               );
                             })}
                           </div>
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            Selected: {goalsCount}/3
+                          <p className="mt-2 text-xs text-muted-foreground">Selected: {goalsCount}/3</p>
+                        </div>
+
+                        {/* ✅ NEW: Industry-specific “important questions” */}
+                        <div className="rounded-2xl border border-border bg-background p-4">
+                          <p className="text-sm font-medium text-foreground">Business details (for better content)</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            These help PostingExpert generate posts that feel accurate for your business.
                           </p>
+
+                          <div className="mt-4 space-y-4">
+                            {activeIndustryQuestions.map((q) => {
+                              const val = (form.surveyExtras || {})[q.id];
+
+                              return (
+                                <div key={q.id}>
+                                  <label className="text-xs text-muted-foreground">
+                                    {q.question}
+                                    {q.required ? <span className="ml-1 text-destructive">*</span> : null}
+                                  </label>
+
+                                  {q.type === "text" ? (
+                                    <input
+                                      value={val || ""}
+                                      onChange={(e) => setExtra(q.id, e.target.value)}
+                                      className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
+                                      placeholder={q.placeholder || ""}
+                                    />
+                                  ) : null}
+
+                                  {q.type === "textarea" ? (
+                                    <textarea
+                                      value={val || ""}
+                                      onChange={(e) => setExtra(q.id, e.target.value)}
+                                      className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
+                                      placeholder={q.placeholder || ""}
+                                      rows={4}
+                                    />
+                                  ) : null}
+
+                                  {q.type === "checkbox" ? (
+                                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                      {(q.options || []).map((opt) => {
+                                        const active = Array.isArray(val) && val.includes(opt);
+                                        return (
+                                          <button
+                                            key={opt}
+                                            type="button"
+                                            onClick={() => toggleExtraCheckbox(q.id, opt)}
+                                            className={[
+                                              "rounded-2xl border px-4 py-3 text-left text-sm transition",
+                                              active ? "border-primary/40 bg-primary/10" : "border-border bg-background hover:bg-muted",
+                                            ].join(" ")}
+                                          >
+                                            {opt}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : null}
+
+                                  {q.type === "radio" ? (
+                                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                      {(q.options || []).map((opt) => {
+                                        const active = val === opt;
+                                        return (
+                                          <button
+                                            key={opt}
+                                            type="button"
+                                            onClick={() => setExtra(q.id, opt)}
+                                            className={[
+                                              "rounded-2xl border px-3 py-3 text-center text-sm transition",
+                                              active ? "border-primary/40 bg-primary/10" : "border-border bg-background hover:bg-muted",
+                                            ].join(" ")}
+                                          >
+                                            {opt}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : null}
+
+                                  {q.hint ? <p className="mt-2 text-xs text-muted-foreground">{q.hint}</p> : null}
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
 
                         <div className="rounded-2xl border border-border bg-background p-4">
                           <div className="flex items-center justify-between gap-4">
                             <div>
-                              <p className="text-sm font-medium text-foreground">
-                                AI-generated images
-                              </p>
+                              <p className="text-sm font-medium text-foreground">AI-generated images</p>
                               <p className="mt-1 text-xs text-muted-foreground">
                                 If enabled, PostingExpert generates on-brand visuals automatically.
                               </p>
@@ -749,14 +1210,10 @@ export default function RegisterPage() {
 
                             <button
                               type="button"
-                              onClick={() =>
-                                setForm((p) => ({ ...p, aiImages: !p.aiImages }))
-                              }
+                              onClick={() => setForm((p) => ({ ...p, aiImages: !p.aiImages }))}
                               className={[
                                 "rounded-full px-4 py-2 text-sm font-medium transition",
-                                form.aiImages
-                                  ? "bg-primary text-primary-foreground hover:opacity-90"
-                                  : "border border-border bg-card text-foreground hover:bg-muted",
+                                form.aiImages ? "bg-primary text-primary-foreground hover:opacity-90" : "border border-border bg-card text-foreground hover:bg-muted",
                               ].join(" ")}
                             >
                               {form.aiImages ? "Enabled" : "Disabled"}
@@ -765,9 +1222,7 @@ export default function RegisterPage() {
                         </div>
 
                         <div>
-                          <label className="text-xs text-muted-foreground">
-                            Posting frequency
-                          </label>
+                          <label className="text-xs text-muted-foreground">Posting frequency</label>
                           <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
                             {FREQUENCY.map((f) => {
                               const active = form.frequency === f.value;
@@ -775,14 +1230,10 @@ export default function RegisterPage() {
                                 <button
                                   key={f.value}
                                   type="button"
-                                  onClick={() =>
-                                    setForm((p) => ({ ...p, frequency: f.value }))
-                                  }
+                                  onClick={() => setForm((p) => ({ ...p, frequency: f.value }))}
                                   className={[
                                     "rounded-2xl border px-3 py-3 text-center text-sm transition",
-                                    active
-                                      ? "border-primary/40 bg-primary/10"
-                                      : "border-border bg-background hover:bg-muted",
+                                    active ? "border-primary/40 bg-primary/10" : "border-border bg-background hover:bg-muted",
                                   ].join(" ")}
                                 >
                                   {f.label}
@@ -793,15 +1244,11 @@ export default function RegisterPage() {
                         </div>
 
                         <div>
-                          <label className="text-xs text-muted-foreground">
-                            Daily post time
-                          </label>
+                          <label className="text-xs text-muted-foreground">Daily post time</label>
                           <input
                             type="time"
                             value={form.postScheduleTime}
-                            onChange={(e) =>
-                              setForm((p) => ({ ...p, postScheduleTime: e.target.value }))
-                            }
+                            onChange={(e) => setForm((p) => ({ ...p, postScheduleTime: e.target.value }))}
                             className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
                           />
                           <p className="mt-2 text-xs text-muted-foreground">
@@ -815,14 +1262,10 @@ export default function RegisterPage() {
                     <div className="min-w-full px-3">
                       <div className="h-full overflow-y-auto pr-2 space-y-4">
                         <div>
-                          <label className="text-xs text-muted-foreground">
-                            Contact details for footers (optional)
-                          </label>
+                          <label className="text-xs text-muted-foreground">Contact details for footers (optional)</label>
                           <textarea
                             value={form.contactDetails}
-                            onChange={(e) =>
-                              setForm((p) => ({ ...p, contactDetails: e.target.value }))
-                            }
+                            onChange={(e) => setForm((p) => ({ ...p, contactDetails: e.target.value }))}
                             className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
                             placeholder={"Website: www.example.com\nContact: +91 98765 43210"}
                             rows={4}
@@ -832,12 +1275,8 @@ export default function RegisterPage() {
                         <div className="rounded-2xl border border-border bg-background p-4">
                           <div className="flex items-center justify-between gap-4">
                             <div>
-                              <p className="text-sm font-medium text-foreground">
-                                Brand colors
-                              </p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                Choose 2–5 colors used in your posts.
-                              </p>
+                              <p className="text-sm font-medium text-foreground">Brand colors</p>
+                              <p className="mt-1 text-xs text-muted-foreground">Choose 2–5 colors used in your posts.</p>
                             </div>
 
                             <div className="flex items-center gap-2">
@@ -847,9 +1286,7 @@ export default function RegisterPage() {
                                 min={2}
                                 max={5}
                                 value={form.numColors}
-                                onChange={(e) =>
-                                  setColorCount(parseInt(e.target.value || "2", 10))
-                                }
+                                onChange={(e) => setColorCount(parseInt(e.target.value || "2", 10))}
                                 className="w-16 rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/30"
                               />
                             </div>
@@ -862,16 +1299,9 @@ export default function RegisterPage() {
                                 className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3"
                               >
                                 <div className="flex items-center gap-3">
-                                  <span className="text-sm font-medium text-foreground">
-                                    Color {i + 1}
-                                  </span>
-                                  <div
-                                    className="h-5 w-5 rounded-full border border-border"
-                                    style={{ backgroundColor: form.colors[i] }}
-                                  />
-                                  <span className="text-xs text-muted-foreground">
-                                    {form.colors[i]}
-                                  </span>
+                                  <span className="text-sm font-medium text-foreground">Color {i + 1}</span>
+                                  <div className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: form.colors[i] }} />
+                                  <span className="text-xs text-muted-foreground">{form.colors[i]}</span>
                                 </div>
 
                                 <input
@@ -887,12 +1317,8 @@ export default function RegisterPage() {
                         </div>
 
                         <div className="rounded-2xl border border-border bg-background p-4">
-                          <p className="text-sm font-medium text-foreground">
-                            Business logo (optional)
-                          </p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            PNG, JPG, SVG • max 5MB. Used on templates & branding.
-                          </p>
+                          <p className="text-sm font-medium text-foreground">Business logo (optional)</p>
+                          <p className="mt-1 text-xs text-muted-foreground">PNG, JPG, SVG • max 5MB. Used on templates & branding.</p>
 
                           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <input
@@ -922,8 +1348,7 @@ export default function RegisterPage() {
                                 className="h-20 w-auto rounded-xl border border-border bg-background p-2"
                               />
                               <p className="mt-2 text-xs text-muted-foreground">
-                                {form.logoFile?.name} •{" "}
-                                {(Number(form.logoFile?.size || 0) / 1024).toFixed(1)} KB
+                                {form.logoFile?.name} • {(Number(form.logoFile?.size || 0) / 1024).toFixed(1)} KB
                               </p>
                             </div>
                           ) : null}
@@ -935,9 +1360,7 @@ export default function RegisterPage() {
                     <div className="min-w-full px-3">
                       <div className="h-full overflow-y-auto pr-2 space-y-4">
                         <div className="rounded-2xl border border-border bg-background p-4">
-                          <p className="text-sm font-medium text-foreground">
-                            Account
-                          </p>
+                          <p className="text-sm font-medium text-foreground">Account</p>
                           <div className="mt-3 grid grid-cols-1 gap-2 text-sm">
                             <div className="flex justify-between gap-3">
                               <span className="text-muted-foreground">Name</span>
@@ -955,9 +1378,7 @@ export default function RegisterPage() {
                         </div>
 
                         <div className="rounded-2xl border border-border bg-background p-4">
-                          <p className="text-sm font-medium text-foreground">
-                            Brand
-                          </p>
+                          <p className="text-sm font-medium text-foreground">Brand</p>
                           <div className="mt-3 grid grid-cols-1 gap-2 text-sm">
                             <div className="flex justify-between gap-3">
                               <span className="text-muted-foreground">Brand</span>
@@ -975,9 +1396,7 @@ export default function RegisterPage() {
                         </div>
 
                         <div className="rounded-2xl border border-border bg-background p-4">
-                          <p className="text-sm font-medium text-foreground">
-                            Content
-                          </p>
+                          <p className="text-sm font-medium text-foreground">Content</p>
                           <div className="mt-3 grid grid-cols-1 gap-2 text-sm">
                             <div className="flex justify-between gap-3">
                               <span className="text-muted-foreground">Goals</span>
@@ -999,21 +1418,15 @@ export default function RegisterPage() {
                         </div>
 
                         <div className="rounded-2xl border border-border bg-background p-4">
-                          <p className="text-sm font-medium text-foreground">
-                            Assets
-                          </p>
+                          <p className="text-sm font-medium text-foreground">Assets</p>
                           <div className="mt-3 grid grid-cols-1 gap-2 text-sm">
                             <div className="flex justify-between gap-3">
                               <span className="text-muted-foreground">Colors</span>
-                              <span className="font-medium">
-                                {form.colors.slice(0, form.numColors).join(", ")}
-                              </span>
+                              <span className="font-medium">{form.colors.slice(0, form.numColors).join(", ")}</span>
                             </div>
                             <div className="flex justify-between gap-3">
                               <span className="text-muted-foreground">Logo</span>
-                              <span className="font-medium">
-                                {form.logoFile ? "Uploaded" : "Not uploaded"}
-                              </span>
+                              <span className="font-medium">{form.logoFile ? "Uploaded" : "Not uploaded"}</span>
                             </div>
                           </div>
                         </div>
@@ -1024,9 +1437,7 @@ export default function RegisterPage() {
                           disabled={loading}
                           className={[
                             "w-full rounded-full px-6 py-3 text-sm font-medium shadow-sm transition",
-                            loading
-                              ? "bg-muted text-muted-foreground cursor-not-allowed"
-                              : "bg-primary text-primary-foreground hover:opacity-90",
+                            loading ? "bg-muted text-muted-foreground cursor-not-allowed" : "bg-primary text-primary-foreground hover:opacity-90",
                           ].join(" ")}
                         >
                           {loading ? "Creating..." : "Create account"}
@@ -1065,9 +1476,7 @@ export default function RegisterPage() {
                     disabled={!stepValid}
                     className={[
                       "rounded-full px-5 py-2 text-sm font-medium shadow-sm transition",
-                      stepValid
-                        ? "bg-primary text-primary-foreground hover:opacity-90"
-                        : "bg-muted text-muted-foreground cursor-not-allowed",
+                      stepValid ? "bg-primary text-primary-foreground hover:opacity-90" : "bg-muted text-muted-foreground cursor-not-allowed",
                     ].join(" ")}
                   >
                     Next →
@@ -1079,9 +1488,7 @@ export default function RegisterPage() {
                     disabled={loading}
                     className={[
                       "rounded-full px-5 py-2 text-sm font-medium shadow-sm transition",
-                      loading
-                        ? "bg-muted text-muted-foreground cursor-not-allowed"
-                        : "bg-primary text-primary-foreground hover:opacity-90",
+                      loading ? "bg-muted text-muted-foreground cursor-not-allowed" : "bg-primary text-primary-foreground hover:opacity-90",
                     ].join(" ")}
                   >
                     {loading ? "Creating..." : "Create"}
@@ -1092,8 +1499,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="mt-10 text-center text-xs text-muted-foreground">
-            By continuing you agree to our terms. Your data is used only to
-            generate on-brand content.
+            By continuing you agree to our terms. Your data is used only to generate on-brand content.
           </div>
         </div>
 
