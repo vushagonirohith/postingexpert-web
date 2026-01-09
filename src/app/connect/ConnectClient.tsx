@@ -3,6 +3,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/api";  // ← New import
 import LinkedInConnectClient from "./linkedin/LinkedInConnectClient";
 
 type SocialDetail = Record<string, any> | null;
@@ -21,10 +22,6 @@ type ProfileLite = {
   posts_created?: number;
   scheduled_time?: string;
 };
-
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://13.233.45.167:5000"
-).replace(/\/$/, "");
 
 function getToken() {
   if (typeof window === "undefined") return null;
@@ -145,24 +142,11 @@ export default function ConnectClient({ profile }: { profile: ProfileLite | null
 
     setLoading(true);
     try {
-      const res = await fetch(
-        `${API_BASE}/social/status?app_user=${encodeURIComponent(appUser)}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          cache: "no-store",
-        }
-      );
-
-      if (!res.ok) {
-        const t = await res.text();
-        setToast(`❌ Social status failed (${res.status}): ${t || "Unknown error"}`);
-        return;
-      }
-
-      const data = (await res.json()) as SocialStatusResponse;
+      const data = await apiFetch("/user/social_status", {
+        method: "GET",
+        token,
+        query: { app_user: appUser },
+      });
 
       const next = {
         instagram: {
@@ -181,7 +165,7 @@ export default function ConnectClient({ profile }: { profile: ProfileLite | null
 
       setSocial(next);
 
-      // If backend confirms, stop optimistic flags
+      // Reset optimistic flags if backend confirms
       if (next.instagram.connected) setIgUiConnected(false);
       if (next.facebook.connected) setFbUiConnected(false);
     } catch (e: any) {
@@ -334,7 +318,6 @@ export default function ConnectClient({ profile }: { profile: ProfileLite | null
                 Company page or profile posting
               </p>
             </div>
-            {/* remove top "Not connected" duplication */}
           </div>
 
           <LinkedInConnectClient

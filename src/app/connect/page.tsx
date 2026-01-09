@@ -21,7 +21,6 @@ type Profile = {
   created_at?: number;
   updated_at?: number;
 
-  // ✅ from your get_profile()
   color_theme?: string;
   has_logo?: boolean;
   logo_s3_url?: string;
@@ -46,7 +45,6 @@ function safeJsonParse(s: string) {
 }
 
 function normalizeLambdaWrapped(raw: any) {
-  // backend may wrap response like: { body: "..." }
   if (raw?.body && typeof raw.body === "string") {
     const parsed = safeJsonParse(raw.body);
     if (parsed) return parsed;
@@ -68,7 +66,6 @@ function normalizeProfile(raw: any): Profile {
     posts_created: p.posts_created ?? data?.posts_created ?? 0,
     connected_accounts: p.connected_accounts ?? data?.connected_accounts ?? 0,
 
-    // ✅ survey-related fields returned by your get_profile()
     color_theme: p.color_theme ?? data?.color_theme,
     has_logo: p.has_logo ?? data?.has_logo,
     logo_s3_url: p.logo_s3_url ?? data?.logo_s3_url,
@@ -109,7 +106,6 @@ export default function ConnectPage() {
       return;
     }
 
-    // ✅ app_user is required by your get_social_status()
     const appUser =
       localStorage.getItem("username") ||
       localStorage.getItem("registeredUserId") ||
@@ -126,10 +122,8 @@ export default function ConnectPage() {
         }),
       ]);
 
-      // ✅ profile includes survey fields from UserSurveyData already
       setProfile(normalizeProfile(profileRaw));
 
-      // ✅ your get_social_status returns: { connected: { instagram, linkedin, facebook, ... } }
       const socialData = normalizeLambdaWrapped(socialRaw);
       const connected = socialData?.connected || {};
 
@@ -147,7 +141,6 @@ export default function ConnectPage() {
         return;
       }
 
-      // fallback (still let user see connect page)
       setProfile({
         username: localStorage.getItem("username") || "User",
         email: "",
@@ -169,10 +162,8 @@ export default function ConnectPage() {
   useEffect(() => {
     if (!ready) return;
     reloadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
-  // ✅ After OAuth callback redirect, status can update slightly later
   useEffect(() => {
     if (!ready) return;
 
@@ -185,7 +176,6 @@ export default function ConnectPage() {
 
     const t = setTimeout(() => reloadAll(), 1200);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
   const displayName = useMemo(() => {
@@ -193,10 +183,8 @@ export default function ConnectPage() {
     return profile.name || profile.username || "User";
   }, [profile]);
 
-  // ✅ Real connected count from get_social_status()
   const connectedCount = useMemo(() => {
-    return [social.instagram, social.linkedin, social.facebook].filter(Boolean)
-      .length;
+    return [social.instagram, social.linkedin, social.facebook].filter(Boolean).length;
   }, [social]);
 
   if (!ready) return null;
@@ -214,8 +202,7 @@ export default function ConnectPage() {
               Your workspace is ready.
             </h1>
             <p className="max-w-2xl text-muted-foreground">
-              One-time setup. After this, PostingExpert runs quietly in the
-              background.
+              One-time setup. After this, PostingExpert runs quietly in the background.
             </p>
           </div>
 
@@ -266,35 +253,49 @@ export default function ConnectPage() {
               </div>
             </div>
 
-            {/* Brand assets */}
+            {/* Brand assets - NOW WITH DIRECT LOGO PREVIEW */}
             <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
               <p className="text-sm text-muted-foreground">Brand assets</p>
 
-              <div className="mt-3 rounded-2xl border border-border bg-background p-4">
-                <p className="text-xs text-muted-foreground">Logo</p>
+              <div className="mt-4">
+                <p className="text-xs text-muted-foreground mb-3">Logo</p>
 
                 {profile?.has_logo && profile?.logo_s3_url ? (
-                  <a
-                    href={profile.logo_s3_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-1 inline-block text-sm font-medium underline"
-                  >
-                    View logo {profile.logo_filename ? `(${profile.logo_filename})` : ""}
-                  </a>
+                  <div className="flex justify-center rounded-2xl border border-border bg-background p-6">
+                    <img
+                      src={profile.logo_s3_url}
+                      alt="Business Logo"
+                      className="max-h-40 max-w-full rounded-lg object-contain shadow-md"
+                      onError={(e) => {
+                        // Hide image and show fallback text if broken link
+                        (e.target as HTMLImageElement).style.display = "none";
+                        const fallback = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
+                        if (fallback) fallback.classList.remove("hidden");
+                      }}
+                    />
+                    <p className="hidden text-center text-sm text-muted-foreground mt-4 italic">
+                      Failed to load logo
+                    </p>
+                  </div>
                 ) : (
-                  <p className="mt-1 text-sm font-medium">
-                    Upload later (we’ll guide you).
-                  </p>
+                  <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-background py-10 text-center">
+                    <div className="w-24 h-24 rounded-full bg-muted/50 border-2 border-dashed border-border flex items-center justify-center mb-4">
+                      <span className="text-3xl text-muted-foreground">?</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground italic">
+                      Upload later (we’ll guide you).
+                    </p>
+                  </div>
                 )}
               </div>
 
               <button
                 type="button"
                 onClick={reloadAll}
-                className="mt-4 w-full rounded-2xl border border-border bg-card px-4 py-3 text-sm font-medium hover:bg-muted"
+                disabled={loading}
+                className="mt-6 w-full rounded-2xl border border-border bg-card px-4 py-3 text-sm font-medium hover:bg-muted disabled:opacity-60"
               >
-                Refresh status
+                {loading ? "Refreshing..." : "Refresh status"}
               </button>
             </div>
           </div>

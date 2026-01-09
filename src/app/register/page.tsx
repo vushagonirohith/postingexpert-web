@@ -298,7 +298,7 @@ export default function RegisterPage() {
           token,
           username: reg?.user?.username || reg?.username || form.username.trim(),
           user_id: reg?.user_id,
-          expires_in: reg?.expires_in || reg?.expiresIn,
+          expires_in: reg?.expires_in || reg?.expiresIn || 3600,
         });
       }
 
@@ -335,7 +335,7 @@ export default function RegisterPage() {
           userId: form.username.trim(), // backend uses this as partition key
           businessType: form.industry, // backend stores as business_type
           answers,
-          timestamp: new Date().toISOString(),
+          timestamp: String(Math.floor(Date.now() / 1000)),
         },
       };
 
