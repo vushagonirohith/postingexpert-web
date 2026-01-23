@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import AnalyticsSection from "@/components/AnalyticsSection";
 
@@ -49,12 +49,10 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     setMounted(true);
-
-    setStats((prev) => ({
-      ...prev,
+    setStats({
       connectedCount: getConnectedCountFromStorage(),
       lastRefreshedAt: getLastRefreshFromStorage(),
-    }));
+    });
   }, []);
 
   const connectedLabel = useMemo(() => {
