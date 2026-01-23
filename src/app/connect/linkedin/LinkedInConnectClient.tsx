@@ -40,7 +40,6 @@ type Props = {
 };
 
 const API_BASE = (
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
   "https://aomkmgl9zj.execute-api.ap-south-1.amazonaws.com/prod"
 );
 
