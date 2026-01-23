@@ -115,24 +115,19 @@ export default function ConnectPage() {
     setLoading(true);
 
     try {
-      const [profileRaw, socialRaw] = await Promise.all([
-        apiFetch("/user/profile", { method: "GET", token }),
-        apiFetch(`/user/social-status?app_user=${encodeURIComponent(appUser)}`, {
-          method: "GET",
-          token,
-        }),
-      ]);
+      // ✅ Single call - profile already includes social status
+        const profileRaw = await apiFetch("/user/profile", { method: "GET", token });
 
-      setProfile(normalizeProfile(profileRaw));
+        const profileData = normalizeProfile(profileRaw);
+        setProfile(profileData);
 
-      const socialData = normalizeLambdaWrapped(socialRaw);
-      const connected = socialData?.connected || {};
-
-      setSocial({
-        instagram: !!connected.instagram,
-        linkedin: !!connected.linkedin,
-        facebook: !!connected.facebook,
-      });
+        // ✅ Extract social status from profile response
+        const connected = profileData?.connected || {};
+        setSocial({
+          instagram: !!connected.instagram,
+          linkedin: !!connected.linkedin,
+          facebook: !!connected.facebook,
+        });
     } catch (e: any) {
       const msg = e?.message || "";
 

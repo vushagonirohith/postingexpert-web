@@ -23,6 +23,14 @@ jobs:
         run: npm ci
 
       - name: Build the Project (Next Export -> out/)
+        env:
+          NEXT_PUBLIC_INSTAGRAM_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_INSTAGRAM_CLIENT_ID }}
+          NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI: ${{ secrets.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI }}
+          NEXT_PUBLIC_FACEBOOK_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_FACEBOOK_CLIENT_ID }}
+          NEXT_PUBLIC_FACEBOOK_REDIRECT_URI: ${{ secrets.NEXT_PUBLIC_FACEBOOK_REDIRECT_URI }}
+          NEXT_PUBLIC_LINKEDIN_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_LINKEDIN_CLIENT_ID }}
+          NEXT_PUBLIC_LINKEDIN_REDIRECT_URI: ${{ secrets.NEXT_PUBLIC_LINKEDIN_REDIRECT_URI }}
+          NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
         run: npm run build
 
       - name: Configure AWS Credentials

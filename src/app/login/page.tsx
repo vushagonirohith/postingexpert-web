@@ -31,7 +31,7 @@ export default function LoginPage() {
         setLoading(true);
         setLoadingMessage("Starting server...");
 
-        await apiFetch("/warmup", { method: "GET" });
+        await apiFetch("/health", { method: "GET" });
 
         if (!cancelled) {
           setLoading(false);

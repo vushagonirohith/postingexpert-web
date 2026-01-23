@@ -144,7 +144,6 @@ export default function ConnectClient({ profile }: { profile: ProfileLite | null
       const data = (await apiFetch("/user/social_status", {
         method: "GET",
         token,
-        query: { app_user: appUser },
       })) as SocialStatusResponse;
 
       const connectedMap = (data as any)?.connected || {};
@@ -163,7 +162,6 @@ export default function ConnectClient({ profile }: { profile: ProfileLite | null
           detail: (data as any)?.connected_details?.facebook || null,
         },
       };
-
 
       setSocial(next);
 
@@ -331,26 +329,44 @@ export default function ConnectClient({ profile }: { profile: ProfileLite | null
 
       {/* Platforms */}
       <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3">
-        {/* LinkedIn */}
+        {/* LinkedIn - NOW MATCHES OTHERS */}
         <div className="rounded-3xl border border-border bg-background p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-lg font-semibold">LinkedIn</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Company page or profile posting
+                Company page auto posting
               </p>
             </div>
+
+            <span
+              className={`mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
+                social.linkedin.connected
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {social.linkedin.connected ? "Connected" : "Not connected"}
+            </span>
           </div>
 
-          <LinkedInConnectClient
-            appUser={appUser}
-            connected={social.linkedin.connected}
-            connectionDetails={{ detail: social.linkedin.detail }}
-            onConnected={() => fetchSocialStatus()}
-            fullWidth
-            connectLabel="Connect"
-            disconnectLabel="Disconnect"
-          />
+          <div className="mt-5">
+            <LinkedInConnectClient
+              appUser={appUser}
+              connected={social.linkedin.connected}
+              connectionDetails={{ detail: social.linkedin.detail }}
+              onConnected={() => fetchSocialStatus()}
+              fullWidth
+              connectLabel="Connect"
+              disconnectLabel="Disconnect"
+            />
+          </div>
+
+          {!!(social.linkedin.detail as any)?.person_urn && (
+            <div className="mt-2 text-xs text-muted-foreground">
+              Profile connected
+            </div>
+          )}
         </div>
 
         {/* Instagram */}
