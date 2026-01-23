@@ -438,7 +438,7 @@ export default function StudioPage() {
     setJobId(null);
 
     // NOTE: uploads are UI-only right now.
-    // If you want to send them: upload to S3 first (presigned URLs) and add `asset_urls`.
+    // If you want to send them: upload to S3 first (presigned URLs) and add `asset_urls`..
     const payload = isRetry
       ? lastPayload
       : {
@@ -827,13 +827,7 @@ export default function StudioPage() {
                     <option value="" disabled>
                       Choose style
                     </option>
-                    {[
-                      { value: "Informative", label: "📚 Informative" },
-                      { value: "Inspirational", label: "💫 Inspirational" },
-                      { value: "Promotional", label: "🎉 Promotional" },
-                      { value: "Educational", label: "🎓 Educational" },
-                      { value: "Engaging", label: "🔥 Engaging" },
-                    ].map((t) => (
+                    {[{ value: "Informative", label: "📚 Informative" },{ value: "Inspirational", label: "💫 Inspirational" },{ value: "Promotional", label: "🎉 Promotional" },{ value: "Educational", label: "🎓 Educational" },{ value: "Engaging", label: "🔥 Engaging" }].map((t) => (
                       <option key={t.value} value={t.value}>
                         {t.label}
                       </option>
@@ -886,13 +880,11 @@ export default function StudioPage() {
                 </div>
 
                 <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
-                  {(
-                    [
-                      ["instagram", "Instagram"],
-                      ["linkedin", "LinkedIn"],
-                      ["facebook", "Facebook"],
-                    ] as const
-                  ).map(([key, label]) => (
+                  {[
+                    ["instagram", "Instagram"],
+                    ["linkedin", "LinkedIn"],
+                    ["facebook", "Facebook"],
+                  ].map(([key, label]) => (
                     <label
                       key={key}
                       className="flex items-center gap-3 rounded-2xl border border-border bg-background px-4 py-3"
@@ -995,7 +987,7 @@ export default function StudioPage() {
               {result?.image_urls?.length > 0 && (
                 <div className="rounded-2xl border border-border bg-card p-6">
                   <h3 className="text-sm font-semibold">Generated Images</h3>
-                  <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {result.image_urls.map((url: string, i: number) => (
                       <a
                         key={i}
@@ -1037,3 +1029,4 @@ export default function StudioPage() {
     </>
   );
 }
+export default StudioPage;
