@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 
@@ -67,6 +68,14 @@ type UploadItem = {
   previewUrl: string;
 };
 
+type JobResult = {
+  image_urls?: string[];
+  pdf_url?: string;
+  result?: string;
+  output?: string;
+  [key: string]: unknown;
+};
+
 export default function StudioPage() {
   const router = useRouter();
   const { ready } = useRequireAuth("/login");
@@ -89,10 +98,10 @@ export default function StudioPage() {
   // queue state
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<string | null>(null);
-  const [result, setResult] = useState<any>(null);
-  const pollRef = useRef<any>(null);
+  const [result, setResult] = useState<JobResult | null>(null);
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
 
-  const [lastPayload, setLastPayload] = useState<any>(null);
+  const [lastPayload, setLastPayload] = useState<Record<string, unknown> | null>(null);
 
   // Meme Mode
   const [isMemeMode, setIsMemeMode] = useState<boolean>(() => {
@@ -143,7 +152,7 @@ export default function StudioPage() {
     recognition.continuous = true;
     recognition.interimResults = true;
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event: ISpeechRecognitionEvent) => {
       let interim = "";
       let finalText = "";
 
@@ -171,7 +180,7 @@ export default function StudioPage() {
       }
     };
 
-    recognition.onerror = (e: any) => {
+    recognition.onerror = (e: ISpeechRecognitionErrorEvent) => {
       // common: not-allowed, service-not-allowed, no-speech, audio-capture
       setVoiceError(`Voice error: ${e.error}`);
       setIsListening(false);
@@ -189,7 +198,7 @@ export default function StudioPage() {
     return () => {
       try {
         recognition.stop();
-      } catch (_) {}
+      } catch {}
       recognitionRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -205,7 +214,7 @@ export default function StudioPage() {
     if (wasListening) {
       try {
         r.stop();
-      } catch (_) {}
+      } catch {}
       setIsListening(false);
     }
 
@@ -230,7 +239,7 @@ export default function StudioPage() {
       startedByUserRef.current = true;
       r.start();
       setIsListening(true);
-    } catch (e) {
+    } catch {
       // start() can throw if called twice fast
       setVoiceError("Could not start voice input. Try again.");
       setIsListening(false);
@@ -244,7 +253,7 @@ export default function StudioPage() {
 
     try {
       r.stop();
-    } catch (_) {}
+    } catch {}
 
     setIsListening(false);
     startedByUserRef.current = false;
@@ -287,14 +296,14 @@ export default function StudioPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const extractResultFromStatus = (data: any) => {
-    const meta = data?.meta || {};
-    return meta.result || data.result || data.output || null;
+  const extractResultFromStatus = (data: Record<string, unknown>) => {
+    const meta = (data as Record<string, unknown>)?.meta as Record<string, unknown> | undefined || {};
+    return (meta as Record<string, unknown>).result || (data as Record<string, unknown>).result || (data as Record<string, unknown>).output || null;
   };
 
-  const extractErrorFromStatus = (data: any) => {
-    const meta = data?.meta || {};
-    return meta.error || data.error || null;
+  const extractErrorFromStatus = (data: Record<string, unknown>) => {
+    const meta = (data as Record<string, unknown>)?.meta || {};
+    return (meta as Record<string, unknown>).error || (data as Record<string, unknown>).error || null;
   };
 
   const pollStatus = (id: string) => {
@@ -315,7 +324,7 @@ export default function StudioPage() {
         setJobStatus(data?.status);
 
         if (data?.status === "completed") {
-          const r = extractResultFromStatus(data);
+          const r = extractResultFromStatus(data) as JobResult | null;
           setResult(r);
           setResponseMessage(
             "🎉 Content generated successfully! Check your email for download links."
@@ -323,30 +332,30 @@ export default function StudioPage() {
           setIsError(false);
           setIsLoading(false);
 
-          clearInterval(pollRef.current);
+          if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
         } else if (data?.status === "failed") {
           const errText =
-            extractErrorFromStatus(data) || "Job failed. Please try again.";
+            (extractErrorFromStatus(data) as string) || "Job failed. Please try again.";
           setIsLoading(false);
           setIsError(true);
           setResponseMessage(errText);
 
-          clearInterval(pollRef.current);
+          if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
         }
-      } catch (err) {
+      } catch {
         setIsLoading(false);
         setIsError(true);
         setResponseMessage("Failed to fetch job status.");
 
-        clearInterval(pollRef.current);
+        if (pollRef.current) clearInterval(pollRef.current);
         pollRef.current = null;
       }
     }, 2000);
   };
 
-  const enqueue = async (payload: any) => {
+  const enqueue = async (payload: Record<string, unknown> | null) => {
     const token =
       typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
@@ -473,18 +482,19 @@ export default function StudioPage() {
       setIsError(false);
 
       pollStatus(job_id);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setIsLoading(false);
       setIsError(true);
 
+      const error = err as { response?: { status?: number; data?: { error?: string } }; message?: string };
       const msg =
-        err?.response?.data?.error ||
-        err?.message ||
+        (error.response?.data?.error as string) ||
+        (error.message as string) ||
         "Failed to enqueue job. Please try again.";
 
       setResponseMessage(msg);
 
-      const status = err?.response?.status;
+      const status = error.response?.status;
       if (status === 401 || status === 403) {
         clearAuth();
         router.replace("/login");
@@ -891,7 +901,7 @@ export default function StudioPage() {
                     >
                       <input
                         type="checkbox"
-                        checked={platforms[key]}
+                        checked={platforms[key as keyof Platforms]}
                         onChange={(e) =>
                           setPlatforms((prev) => ({
                             ...prev,
@@ -945,7 +955,7 @@ export default function StudioPage() {
                   {isError && lastPayload && (
                     <button
                       type="button"
-                      onClick={(e) => handleSubmit(e as any, true)}
+                      onClick={(e) => handleSubmit(e as React.FormEvent, true)}
                       disabled={isLoading}
                       className="mt-3 rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground disabled:opacity-60"
                     >
@@ -984,11 +994,11 @@ export default function StudioPage() {
                 </div>
               </div>
 
-              {result?.image_urls?.length > 0 && (
+              {result && result.image_urls && result.image_urls.length > 0 && (
                 <div className="rounded-2xl border border-border bg-card p-6">
                   <h3 className="text-sm font-semibold">Generated Images</h3>
                   <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {result.image_urls.map((url: string, i: number) => (
+                    {result?.image_urls?.map((url: string, i: number) => (
                       <a
                         key={i}
                         href={url}
@@ -996,10 +1006,12 @@ export default function StudioPage() {
                         rel="noreferrer"
                         className="block overflow-hidden rounded-2xl border border-border bg-background hover:bg-muted"
                       >
-                        <img
+                        <Image
                           src={url}
                           alt={`Generated ${i + 1}`}
                           className="h-28 w-full object-cover"
+                          width={200}
+                          height={112}
                         />
                       </a>
                     ))}
