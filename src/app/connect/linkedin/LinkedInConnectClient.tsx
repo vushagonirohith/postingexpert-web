@@ -155,13 +155,16 @@ export default function LinkedInConnectClient({
 
     // ✅ Updated scopes to include organization posting
     const scopes = [
-      "openid",
-      "profile",
-      "email",
       "w_member_social",
-      "w_organization_social",
+      "r_basicprofile",
+      "r_1st_connections_size",
+      "r_member_profileAnalytics",
+      "r_member_postAnalytics",
+      "rw_organization_admin",
       "r_organization_social",
+      "w_organization_social",
     ].join(" ");
+
 
     const url = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${encodeURIComponent(
       LINKEDIN_CLIENT_ID
