@@ -5,7 +5,7 @@ export function PlatformStats() {
     { name: "X", value: "↑ 10%" },
     { name: "Facebook", value: "↑ 8%" },
   ];
-
+ 
   return (
     <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
       <p className="text-sm font-medium text-foreground">
