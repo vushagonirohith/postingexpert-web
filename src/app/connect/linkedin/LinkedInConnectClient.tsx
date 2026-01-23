@@ -8,6 +8,8 @@ type ConnectionDetail = {
   has_org_access?: boolean;
   person_urn?: string;
   org_urn?: string;
+  preferred_urn?: string;
+  all_org_urns?: string[];
   connected_at?: string;
 };
 
@@ -29,48 +31,34 @@ type LinkedInCallbackMessage = {
 
 type Props = {
   appUser: string;
-  onConnected: () => void; // refreshSocial in parent
-  connected: boolean; // from backend status
+  onConnected: () => void;
+  connected: boolean;
   connectionDetails?: ConnectionDetailsProp | null;
-
   fullWidth?: boolean;
   connectLabel?: string;
   disconnectLabel?: string;
 };
 
-
-
-// ✅ EC2 base stays for disconnect + status (as you want)
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_BASE_URL ||
   "https://vpgqg4a4tk.execute-api.ap-south-1.amazonaws.com/prod"
 );
 
-// ✅ LinkedIn OAuth config
 const LINKEDIN_CLIENT_ID =
-  process.env.NEXT_PUBLIC_LINKEDIN_CLIENT_ID || "77riv9srpj3ac4";
+  process.env.NEXT_PUBLIC_LINKEDIN_CLIENT_ID || "86geycovoa141y";
 
-// ✅ IMPORTANT: Your Lambda REST API callback URL
 const LINKEDIN_REDIRECT_URI =
   "https://vpgqg4a4tk.execute-api.ap-south-1.amazonaws.com/prod/social/linkedin/callback";
 
-
-// ✅ allow only these origins to send oauth callback messages
-// Put your frontend domain here when deployed (recommended).
 const FRONTEND_ORIGIN =
   process.env.NEXT_PUBLIC_APP_ORIGIN ||
   (typeof window !== "undefined" ? window.location.origin : "");
 
-
-
 const ALLOWED_CALLBACK_ORIGINS = new Set<string>([
-  FRONTEND_ORIGIN, // if you ever host callback on same origin (rare)
-  // Your REST API Gateway origins (both callback gateway base and others)
+  FRONTEND_ORIGIN,
   "https://vpgqg4a4tk.execute-api.ap-south-1.amazonaws.com",
   "https://aomkmgl9zj.execute-api.ap-south-1.amazonaws.com",
 ]);
-
-
 
 export default function LinkedInConnectClient({
   appUser,
@@ -84,25 +72,31 @@ export default function LinkedInConnectClient({
   const [isConnecting, setIsConnecting] = useState(false);
   const [lastMessage, setLastMessage] = useState<string | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
-
-  // ✅ UI-only: temporary connected state after success callback
   const [uiConnected, setUiConnected] = useState(false);
 
   const detail = connectionDetails?.detail || null;
-
-  // ✅ effective connected = backend OR uiConnected
   const isConnected = connected || uiConnected;
 
-  const modeLabel = useMemo(() => {
-    if (!isConnected) return null;
-    const m = (detail?.posting_method || "").toLowerCase();
-    if (m.includes("org") || detail?.org_urn) return "Organization / Page";
-    return detail?.posting_method || "Personal Profile";
-  }, [isConnected, detail?.posting_method, detail?.org_urn]);
+  // ✅ Display posting method and org count
+  const postingInfo = useMemo(() => {
+    if (!isConnected || !detail) return null;
 
-  // If backend finally confirms connected, keep UI connected
+    const hasOrg = detail.has_org_access;
+    const orgCount = detail.organization_count || 0;
+    const method = detail.posting_method || "Personal Profile";
+
+    return {
+      method,
+      hasOrg,
+      orgCount,
+      displayText: hasOrg 
+        ? `${method} (${orgCount} org${orgCount > 1 ? 's' : ''})` 
+        : method,
+    };
+  }, [isConnected, detail]);
+
   useEffect(() => {
-    if (connected) setUiConnected(false); // backend is truth now
+    if (connected) setUiConnected(false);
     if (!isConnected) setLastMessage(null);
   }, [connected, isConnected]);
 
@@ -110,16 +104,11 @@ export default function LinkedInConnectClient({
     const handleMessage = (event: MessageEvent) => {
       let data: any = event.data;
 
-      // ✅ Debug (remove later)
       console.log("[LinkedInConnectClient] message event:", {
         origin: event.origin,
         data,
       });
 
-      // ✅ If you want strict origin checks, uncomment this:
-      // if (!ALLOWED_CALLBACK_ORIGINS.has(event.origin)) return;
-
-      // accept stringified json also
       if (typeof data === "string") {
         try {
           data = JSON.parse(data);
@@ -136,11 +125,8 @@ export default function LinkedInConnectClient({
       if (msg.success) {
         setLastError(null);
         setLastMessage(msg.message || "LinkedIn connected successfully!");
-
-        // ✅ UI-only: show as connected immediately
         setUiConnected(true);
-
-        onConnected(); // refreshSocial() in parent
+        onConnected();
       } else {
         setLastMessage(null);
         setLastError(msg.error || "LinkedIn connect failed");
@@ -167,14 +153,15 @@ export default function LinkedInConnectClient({
 
     const redirectUri = encodeURIComponent(LINKEDIN_REDIRECT_URI);
 
-    // NOTE: some scopes may be rejected if your LinkedIn app isn't approved.
+    // ✅ Updated scopes to include organization posting
     const scopes = [
       "openid",
       "profile",
       "email",
       "w_member_social",
+      "w_organization_social",
+      "r_organization_social",
     ].join(" ");
-
 
     const url = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${encodeURIComponent(
       LINKEDIN_CLIENT_ID
@@ -218,27 +205,24 @@ export default function LinkedInConnectClient({
         return;
       }
 
-      // ✅ keep disconnect on EC2 (as per your plan)
-      const res = await fetch(`${API_BASE}/social/linkedin/disconnect`, {
+      const res = await fetch(`${API_BASE}/user/disconnect_social`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          app_user: appUser,
           platform: "linkedin",
         }),
       });
 
-      const result = await res.json().catch(() => ({}));
-
-      if (res.ok && (result as any)?.success) {
+      if (res.ok) {
         setUiConnected(false);
         setLastMessage("LinkedIn disconnected successfully!");
         setLastError(null);
         onConnected();
       } else {
+        const result = await res.json().catch(() => ({}));
         const err =
           (result as any)?.error ||
           (result as any)?.message ||
@@ -261,27 +245,13 @@ export default function LinkedInConnectClient({
     : connectLabel;
 
   return (
-    <div className="mt-5">
-      {/* Top status row */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span
-            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
-              isConnected
-                ? "bg-emerald-100 text-emerald-800"
-                : "bg-muted text-muted-foreground"
-            }`}
-          >
-            {isConnected ? "Connected" : "Not connected"}
+    <div>
+      {/* ✅ Show posting method and disconnect when connected */}
+      {isConnected && postingInfo ? (
+        <div className="mb-3 flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">
+            {postingInfo.displayText}
           </span>
-
-          {isConnected && modeLabel ? (
-            <span className="text-xs text-muted-foreground">• {modeLabel}</span>
-          ) : null}
-        </div>
-
-        {/* Disconnect on top when connected */}
-        {isConnected ? (
           <button
             onClick={handleDisconnect}
             disabled={isConnecting}
@@ -289,17 +259,31 @@ export default function LinkedInConnectClient({
           >
             Disconnect
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
-      {/* Detail box only when connected */}
+      {/* ✅ Show connection details when connected */}
       {isConnected && detail ? (
-        <div className="mt-3 rounded-2xl border border-border bg-card p-3 text-xs">
+        <div className="mb-3 rounded-2xl border border-border bg-card p-3 text-xs">
           <div className="grid grid-cols-1 gap-2">
             {detail.person_urn ? (
               <Row label="Person URN" value={detail.person_urn} />
             ) : null}
-            {detail.org_urn ? <Row label="Org URN" value={detail.org_urn} /> : null}
+            
+            {detail.has_org_access && detail.all_org_urns && detail.all_org_urns.length > 0 ? (
+              <>
+                <Row 
+                  label="Organizations" 
+                  value={`${detail.all_org_urns.length} available`} 
+                />
+                {detail.preferred_urn ? (
+                  <Row 
+                    label="Posting to" 
+                    value={detail.preferred_urn.includes("organization") ? "Company Page" : "Personal Profile"} 
+                  />
+                ) : null}
+              </>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -310,19 +294,22 @@ export default function LinkedInConnectClient({
         disabled={isConnecting}
         className={
           fullWidth
-            ? "mt-4 w-full rounded-full px-5 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:opacity-70"
-            : "mt-4 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-70"
+            ? `w-full rounded-full px-5 py-3 text-sm font-medium shadow-sm transition hover:opacity-90 disabled:opacity-70 ${
+                isConnected
+                  ? "bg-destructive text-destructive-foreground"
+                  : "bg-primary text-primary-foreground"
+              }`
+            : `rounded-md px-4 py-2 text-sm font-medium disabled:opacity-70 ${
+                isConnected
+                  ? "bg-destructive text-destructive-foreground"
+                  : "bg-primary text-primary-foreground"
+              }`
         }
-        style={{
-          backgroundColor: isConnected ? "#dc3545" : "#8b7bff",
-          cursor: isConnecting ? "not-allowed" : "pointer",
-          border: "none",
-        }}
       >
         {btnLabel}
       </button>
 
-      {/* message/error */}
+      {/* Success/Error messages */}
       {lastMessage ? (
         <div className="mt-2 rounded-2xl border border-border bg-background p-2 text-xs">
           ✅ {lastMessage}
