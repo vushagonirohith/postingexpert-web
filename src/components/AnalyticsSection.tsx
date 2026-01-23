@@ -258,7 +258,7 @@ export default function AnalyticsSection() {
                   innerRadius={60}
                   outerRadius={90}
                   paddingAngle={2}
-                  label={({ percent }) => (percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : "")}
+                  label={({ percent }) => (percent && percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : "")}
                   labelLine={false}
                 >
                   {platforms.map((_, index) => (
