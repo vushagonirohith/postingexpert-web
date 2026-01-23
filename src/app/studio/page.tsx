@@ -913,7 +913,7 @@ export default function StudioPage() {
                       <span className="text-sm">{label}</span>
                     </label>
                   ))}
-                </div>
+                </div> 
 
                 {errors.platforms && (
                   <p className="mt-2 text-xs text-red-500">
