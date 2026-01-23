@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useLayoutEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import AnalyticsSection from "@/components/AnalyticsSection";
 
@@ -41,18 +41,14 @@ function getLastRefreshFromStorage(): string | undefined {
 
 export default function AnalyticsPage() {
   const [mounted, setMounted] = useState(false);
-  const [stats, setStats] = useState<QuickStats>({
-    connectedCount: 0,
+  const [stats] = useState<QuickStats>(() => ({
+    connectedCount: getConnectedCountFromStorage(),
     totalPlatforms: 3,
-    lastRefreshedAt: undefined,
-  });
+    lastRefreshedAt: getLastRefreshFromStorage(),
+  }));
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setMounted(true);
-    setStats({
-      connectedCount: getConnectedCountFromStorage(),
-      lastRefreshedAt: getLastRefreshFromStorage(),
-    });
   }, []);
 
   const connectedLabel = useMemo(() => {
