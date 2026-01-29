@@ -49,21 +49,30 @@ export function SiteNavbar() {
 
           {/* Show Connect only when logged in (keeps your style) */}
           {authed && (
-            <>
-              <Link
-                href="/connect"
-                className="rounded-full px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                Connect
-              </Link>
-              <Link
-                href="/analytics"
-                className="rounded-full px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                Analytics
-              </Link>
-            </>
-          )}
+  <>
+    <Link
+      href="/connect"
+      className="rounded-full px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    >
+      Connect
+    </Link>
+
+    <Link
+      href="/analytics"
+      className="rounded-full px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    >
+      Analytics
+    </Link>
+
+    <Link
+      href="/settings"
+      className="rounded-full px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    >
+      Settings
+    </Link>
+  </>
+)}
+
         </nav>
 
         {/* Right actions */}

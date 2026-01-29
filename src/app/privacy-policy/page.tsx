@@ -10,27 +10,68 @@ export const metadata: Metadata = {
 
 const LAST_UPDATED = "27 January, 2026";
 
+const SECTIONS: Array<[string, string]> = [
+  ["info", "1. Information We Collect"],
+  ["why", "2. Why We Collect This Data"],
+  ["use", "3. How We Use the Data"],
+  ["retention", "4. Data Storage & Retention"],
+  ["sharing", "5. Data Sharing & Processors"],
+  ["control", "6. User Control & Revoking Access"],
+  ["deletion", "7. Data Deletion"],
+  ["meta", "8. Meta Compliance"],
+  ["security", "9. Security Measures"],
+  ["changes", "10. Changes to This Policy"],
+  ["contact", "11. Contact Information"],
+];
+
 export default function PrivacyPolicyPage() {
   return (
     <main className="bg-white">
-      {/* Top header band */}
-      <section className="border-b border-neutral-200 bg-neutral-50">
+      {/* Header */}
+      <section className="border-b border-neutral-200 bg-gradient-to-b from-neutral-50 to-white">
         <div className="mx-auto max-w-5xl px-4 py-10 md:px-6 md:py-14">
-          <div className="max-w-3xl">
-            <p className="text-xs font-medium tracking-wide text-neutral-600">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-4 py-2 text-sm text-neutral-700 shadow-sm transition hover:bg-neutral-50"
+            >
+              <span aria-hidden>←</span>
+              Back to Home
+            </Link>
+
+            <span className="inline-flex items-center rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-600">
               LEGAL
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-neutral-900 md:text-4xl">
+            </span>
+          </div>
+
+          <div className="max-w-3xl">
+            <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 md:text-4xl">
               Privacy Policy
             </h1>
             <p className="mt-3 text-sm text-neutral-600">
               Last updated: <span className="font-medium">{LAST_UPDATED}</span>
             </p>
-            <p className="mt-4 text-base leading-relaxed text-neutral-700">
+
+            <p className="mt-5 text-base leading-relaxed text-neutral-700">
               PostingExpert (also referred to as “we”, “our”, or “the App”) is
               committed to protecting your privacy and complying with Facebook,
               Instagram, and Meta Platform Policies.
             </p>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                href="#contact"
+                className="inline-flex items-center justify-center rounded-full bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800"
+              >
+                Contact us
+              </Link>
+              <Link
+                href="#deletion"
+                className="inline-flex items-center justify-center rounded-full border border-neutral-200 bg-white px-5 py-2.5 text-sm font-medium text-neutral-900 transition hover:bg-neutral-50"
+              >
+                Data deletion
+              </Link>
+            </div>
           </div>
         </div>
       </section>
@@ -38,42 +79,58 @@ export default function PrivacyPolicyPage() {
       {/* Content */}
       <section>
         <div className="mx-auto max-w-5xl px-4 py-10 md:px-6 md:py-14">
-          <div className="grid gap-10 lg:grid-cols-[240px_1fr]">
-            {/* Sticky side nav */}
+          {/* Mobile: On this page (server-safe) */}
+          <div className="mb-8 lg:hidden">
+            <details className="rounded-2xl border border-neutral-200 bg-white p-4">
+              <summary className="cursor-pointer text-sm font-semibold text-neutral-900">
+                On this page
+              </summary>
+
+              <nav className="mt-3 space-y-1.5 text-sm">
+                {SECTIONS.map(([id, label]) => (
+                  <a
+                    key={id}
+                    href={`#${id}`}
+                    className="block rounded-lg px-2 py-2 text-neutral-600 transition hover:bg-neutral-50 hover:text-neutral-900"
+                  >
+                    {label}
+                  </a>
+                ))}
+              </nav>
+            </details>
+          </div>
+
+          <div className="grid gap-10 lg:grid-cols-[260px_1fr]">
+            {/* Desktop sticky nav */}
             <aside className="hidden lg:block">
               <div className="sticky top-6 rounded-2xl border border-neutral-200 bg-white p-4">
                 <p className="text-xs font-semibold tracking-wide text-neutral-700">
                   ON THIS PAGE
                 </p>
-                <nav className="mt-3 space-y-2 text-sm">
-                  {[
-                    ["info", "1. Information We Collect"],
-                    ["why", "2. Why We Collect This Data"],
-                    ["use", "3. How We Use the Data"],
-                    ["retention", "4. Data Storage & Retention"],
-                    ["sharing", "5. Data Sharing & Processors"],
-                    ["control", "6. User Control & Revoking Access"],
-                    ["deletion", "7. Data Deletion"],
-                    ["meta", "8. Meta Compliance"],
-                    ["security", "9. Security Measures"],
-                    ["changes", "10. Changes to This Policy"],
-                    ["contact", "11. Contact Information"],
-                  ].map(([id, label]) => (
+                <nav className="mt-3 space-y-1.5 text-sm">
+                  {SECTIONS.map(([id, label]) => (
                     <a
                       key={id}
                       href={`#${id}`}
-                      className="block rounded-lg px-2 py-1.5 text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900"
+                      className="block rounded-lg px-2 py-2 text-neutral-600 transition hover:bg-neutral-50 hover:text-neutral-900"
                     >
                       {label}
                     </a>
                   ))}
                 </nav>
+
+                <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                  <p className="text-xs text-neutral-700">
+                    Questions or deletion request? Email{" "}
+                    <span className="font-medium">contact@inikola.com</span>.
+                  </p>
+                </div>
               </div>
             </aside>
 
-            {/* Main article */}
+            {/* Policy */}
             <article className="min-w-0">
-              <div className="rounded-2xl border border-neutral-200 bg-white p-6 md:p-8">
+              <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm md:p-8">
                 <div className="prose prose-neutral max-w-none">
                   <p>
                     This Privacy Policy explains what data we collect, why we
@@ -333,11 +390,48 @@ export default function PrivacyPolicyPage() {
                 </div>
               </div>
 
-              {/* bottom note */}
-              <div className="mt-6 rounded-2xl border border-neutral-200 bg-neutral-50 p-5 md:p-6">
-                <p className="text-sm text-neutral-700">
-                  Need help with data deletion or account removal? Email{" "}
-                  <span className="font-medium">contact@inikola.com</span>.
+              {/* Bottom cards */}
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5 md:p-6">
+                  <p className="text-sm font-medium text-neutral-900">
+                    Need data deletion?
+                  </p>
+                  <p className="mt-1 text-sm text-neutral-700">
+                    Email <span className="font-medium">contact@inikola.com</span>{" "}
+                    with your registered email and connected account.
+                  </p>
+                  <div className="mt-4">
+                    <a
+                      href="mailto:contact@inikola.com?subject=PostingExpert%20Data%20Deletion%20Request"
+                      className="inline-flex items-center justify-center rounded-full bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800"
+                    >
+                      Email deletion request
+                    </a>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-neutral-200 bg-white p-5 md:p-6">
+                  <p className="text-sm font-medium text-neutral-900">
+                    Back to PostingExpert
+                  </p>
+                  <p className="mt-1 text-sm text-neutral-700">
+                    Return and continue managing your automations.
+                  </p>
+                  <div className="mt-4">
+                    <Link
+                      href="/"
+                      className="inline-flex items-center justify-center rounded-full border border-neutral-200 bg-white px-5 py-2.5 text-sm font-medium text-neutral-900 transition hover:bg-neutral-50"
+                    >
+                      Back to Home
+                    </Link>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer strip */}
+              <div className="mt-10 border-t border-neutral-200 pt-6 text-xs text-neutral-500">
+                <p>
+                  © {new Date().getFullYear()} PostingExpert • Inikola Technologies Private Limited
                 </p>
               </div>
             </article>

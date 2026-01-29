@@ -33,13 +33,24 @@ export function SiteFooter() {
             </Link>
           </div>
         </div>
+            <div className="mt-8 flex flex-col gap-3 border-t border-border pt-6 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between">
+              <p>© {new Date().getFullYear()} PostingExpert. All rights reserved.</p>
+            <div className="flex gap-4">
+      <Link
+        href="/privacy-policy"
+        className="opacity-80 transition-colors hover:text-foreground hover:underline"
+      >
+        Privacy
+      </Link>
 
-        <div className="mt-8 flex flex-col gap-3 border-t border-border pt-6 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between">
-          <p>© {new Date().getFullYear()} PostingExpert. All rights reserved.</p>
-          <div className="flex gap-4">
-            <span className="opacity-80">Privacy</span>
-            <span className="opacity-80">Terms</span>
-          </div>
+      <Link
+        href="/privacy-policy"
+        className="opacity-80 transition-colors hover:text-foreground hover:underline"
+      >
+        Terms
+      </Link>
+    </div>
+
         </div>
       </div>
     </footer>
