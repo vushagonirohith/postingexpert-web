@@ -156,7 +156,7 @@ export default function PrivacyPolicyPage() {
                     advertising profiling outside the app.
                   </p>
 
-                  <h2 id="info"><strong>1. Information We Collect<strong></h2>
+                  <h2 id="info"><strong>1. Information We Collect</strong></h2>
                   <p>
                     When you connect your Facebook or Instagram account to
                     PostingExpert, we may collect the following information only
