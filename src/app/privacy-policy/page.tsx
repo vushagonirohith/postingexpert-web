@@ -364,7 +364,7 @@ export default function PrivacyPolicyPage() {
                   </p>
                   <ul>
                     <li>
-                      In-app: Use the “Delete Account / Delete Data” option (if available)
+                      In-app: Use the “Delete Account / Delete Data” option (can be accessed via settings)
                     </li>
                     <li>
                       Email: Send a request to <strong>contact@inikola.com</strong>
