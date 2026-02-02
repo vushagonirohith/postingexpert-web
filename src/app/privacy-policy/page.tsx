@@ -156,7 +156,7 @@ export default function PrivacyPolicyPage() {
                     advertising profiling outside the app.
                   </p>
 
-                  <h2 id="info">1. Information We Collect</h2>
+                  <h2 id="info"><strong>1. Information We Collect<strong></h2>
                   <p>
                     When you connect your Facebook or Instagram account to
                     PostingExpert, we may collect the following information only
@@ -219,7 +219,7 @@ export default function PrivacyPolicyPage() {
                     <li>Financial information</li>
                   </ul>
 
-                  <h2 id="why">2. Why We Collect This Data</h2>
+                  <h2 id="why"><strong>2. Why We Collect This Data</strong></h2>
                   <p>
                     We collect and process this data strictly to provide our
                     core functionality:
@@ -253,7 +253,7 @@ export default function PrivacyPolicyPage() {
                     user-initiated publishing and analytics features.
                   </p>
 
-                  <h2 id="use">3. How We Use the Data</h2>
+                  <h2 id="use"><strong>3. How We Use the Data</strong></h2>
                   <p>
                     Your data is used only within the scope explicitly approved
                     by you, including:
@@ -286,7 +286,7 @@ export default function PrivacyPolicyPage() {
                     profiling outside the app.
                   </p>
 
-                  <h2 id="retention">4. Data Storage &amp; Retention</h2>
+                  <h2 id="retention"><strong>4. Data Storage &amp; Retention</strong></h2>
                   <ul>
                     <li>Access tokens are stored securely in encrypted form</li>
                     <li>
@@ -320,7 +320,7 @@ export default function PrivacyPolicyPage() {
                     </li>
                   </ul>
 
-                  <h2 id="sharing">5. Data Sharing &amp; Third-Party Processors</h2>
+                  <h2 id="sharing"><strong>5. Data Sharing &amp; Third-Party Processors</strong></h2>
                   <p>
                     We do not sell or share data with third parties for marketing
                     purposes.
@@ -340,7 +340,7 @@ export default function PrivacyPolicyPage() {
                     operate the service. No data is sold.
                   </p>
 
-                  <h2 id="control">6. User Control &amp; Revoking Access</h2>
+                  <h2 id="control"><strong>6. User Control &amp; Revoking Access</strong></h2>
                   <p>Users are always in control of their data.</p>
                   <p>You can revoke access at any time by:</p>
                   <ul>
@@ -357,7 +357,7 @@ export default function PrivacyPolicyPage() {
                     <li>No further data is accessed or processed</li>
                   </ul>
 
-                  <h2 id="deletion">7. Data Deletion</h2>
+                  <h2 id="deletion"><strong>7. Data Deletion</strong></h2>
                   <p>Users may request complete deletion of their data at any time.</p>
                   <p>
                     <strong>How to request deletion:</strong>
@@ -377,7 +377,7 @@ export default function PrivacyPolicyPage() {
                   </ul>
                   <p>We will process deletion requests within 7 business days.</p>
 
-                  <h2 id="meta">8. Compliance with Meta Platform Policies</h2>
+                  <h2 id="meta"><strong>8. Compliance with Meta Platform Policies</strong></h2>
                   <p>
                     PostingExpert complies with applicable Meta policies and terms,
                     including:
@@ -393,7 +393,7 @@ export default function PrivacyPolicyPage() {
                     you provide consent through Meta authorization.
                   </p>
 
-                  <h2 id="security">9. Security Measures</h2>
+                  <h2 id="security"><strong>9. Security Measures</strong></h2>
                   <p>We implement industry-standard security practices including:</p>
                   <ul>
                     <li>HTTPS encryption</li>
@@ -402,13 +402,13 @@ export default function PrivacyPolicyPage() {
                     <li>Regular monitoring and logging</li>
                   </ul>
 
-                  <h2 id="changes">10. Changes to This Policy</h2>
+                  <h2 id="changes"><strong>10. Changes to This Policy</strong></h2>
                   <p>
                     We may update this Privacy Policy periodically. Any changes
                     will be posted on this page with an updated revision date.
                   </p>
 
-                  <h2 id="contact">11. Contact Information</h2>
+                  <h2 id="contact"><strong>11. Contact Information</strong></h2>
                   <ul>
                     <li>
                       <strong>Company Name:</strong> Inikola Technologies Private Limited
