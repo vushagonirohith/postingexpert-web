@@ -1,3 +1,4 @@
+// src/app/login/page.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -6,6 +7,8 @@ import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
 import { saveAuth } from "@/lib/auth";
 import { apiFetch, API_BASE } from "@/lib/api";
+// 🆕 HUBSPOT CRM IMPORT
+import HubSpotCRMService from "@/lib/hubspotCRM";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -28,7 +31,7 @@ export default function LoginPage() {
         setLoading(true);
         setLoadingMessage("Starting server...");
 
-        await apiFetch("/warmup", { method: "GET" });
+        await apiFetch("/health", { method: "GET" });
 
         if (!cancelled) {
           setLoading(false);
@@ -55,7 +58,6 @@ export default function LoginPage() {
     setLoadingMessage("Connecting to server...");
 
     try {
-      // ✅ IMPORTANT: send same payload as your old React backend expects
       const data: any = await apiFetch("/user/login", {
         method: "POST",
         body: {
@@ -75,12 +77,36 @@ export default function LoginPage() {
       const username = user?.username || data?.username || usernameOrEmail;
       const userId = user?.user_id || data?.user_id || data?.user?.id;
 
+      // ✅ Pull email from response; if not present, infer only if user typed an email
+      const rawEmailFromApi = user?.email || data?.email || "";
+      const typedLooksLikeEmail =
+        typeof usernameOrEmail === "string" && usernameOrEmail.includes("@");
+      const inferredEmail = typedLooksLikeEmail ? usernameOrEmail : "";
+
+      const userEmail = (rawEmailFromApi || inferredEmail).trim();
+
       if (!token) throw new Error("Authentication failed - no token received");
 
       // ✅ Store auth
       localStorage.setItem("token", token);
       localStorage.setItem("username", username);
-      localStorage.setItem("tokenExpiry", String(Date.now() + Number(expiresIn) * 1000));
+      localStorage.setItem(
+        "tokenExpiry",
+        String(Date.now() + Number(expiresIn) * 1000)
+      );
+
+      // ✅ IMPORTANT FIX:
+      // Analytics expects EMAIL. Store it in a consistent key.
+      if (userEmail) {
+        localStorage.setItem("email", userEmail);      // ✅ primary key
+        localStorage.setItem("userEmail", userEmail);  // ✅ keep for compatibility
+        localStorage.setItem("user_email", userEmail); // ✅ optional compatibility
+      } else {
+        // Avoid stale values
+        localStorage.removeItem("email");
+        localStorage.removeItem("userEmail");
+        localStorage.removeItem("user_email");
+      }
 
       saveAuth({
         token,
@@ -89,13 +115,30 @@ export default function LoginPage() {
         expires_in: expiresIn,
       });
 
-      // ✅ Remember me (same as React)
+      // ✅ Remember me
       if (rememberMe) {
         localStorage.setItem("rememberedUsername", usernameOrEmail);
         localStorage.setItem("rememberMe", "true");
       } else {
         localStorage.removeItem("rememberedUsername");
         localStorage.removeItem("rememberMe");
+      }
+
+      // 🆕 RECORD USER IN HUBSPOT CRM (non-blocking)
+      try {
+        // Use the real email; if missing, skip CRM instead of fake @example.com
+        if (userEmail) {
+          await HubSpotCRMService.createContact(
+            userEmail,
+            username,
+            userId || username
+          );
+          console.log("✅ User recorded in HubSpot CRM");
+        } else {
+          console.warn("⚠️ No email available; skipped HubSpot contact create.");
+        }
+      } catch (crmError) {
+        console.warn("⚠️ HubSpot CRM error (non-fatal):", crmError);
       }
 
       setLoadingMessage("Success! Redirecting...");
@@ -155,7 +198,7 @@ export default function LoginPage() {
 
               <div className="mt-8 rounded-2xl border border-border bg-card p-6 shadow-sm">
                 <p className="text-sm font-medium text-foreground">
-                  What you’ll see inside
+                  What you'll see inside
                 </p>
                 <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
                   <li className="flex items-start gap-2">

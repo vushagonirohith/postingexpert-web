@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
 import { saveAuth } from "@/lib/auth";
+import HubSpotCRMService from "@/lib/hubspotCRM";
 
 // ✅ use your shared api helper (env-based, starts EC2 via gateway)
 import { apiFetch, API_BASE } from "@/lib/api";
@@ -738,6 +739,8 @@ export default function RegisterPage() {
 
       localStorage.setItem("registeredUserId", form.username.trim());
       localStorage.setItem("username", form.username.trim());
+      // 🆕 Store email for HubSpot
+      localStorage.setItem("userEmail", form.email.toLowerCase().trim());
 
       if (token) {
         saveAuth({
@@ -746,6 +749,19 @@ export default function RegisterPage() {
           user_id: reg?.user_id,
           expires_in: reg?.expires_in || reg?.expiresIn || 3600,
         });
+      }
+
+      // 🆕 RECORD USER IN HUBSPOT CRM (non-blocking)
+      try {
+        await HubSpotCRMService.createContact(
+          form.email.toLowerCase().trim(),
+          form.username.trim(),
+          form.username.trim()
+        );
+        console.log("✅ User registered in HubSpot CRM");
+      } catch (crmError) {
+        // Don't fail registration if CRM fails
+        console.warn("⚠️ HubSpot CRM error (non-fatal):", crmError);
       }
 
       // 2) SAVE SURVEY / ONBOARDING DATA using SAME endpoint (/user/register)
