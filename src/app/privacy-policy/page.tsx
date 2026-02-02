@@ -132,8 +132,22 @@ export default function PrivacyPolicyPage() {
 
             {/* Policy */}
             <article className="min-w-0">
-              <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm md:p-8">
-                <div className="prose prose-neutral max-w-none">
+              <div className="rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm md:p-10">
+                <div
+                  className={[
+                    "prose prose-neutral max-w-none leading-relaxed",
+                    // Section spacing + separators
+                    "prose-h2:mt-14 prose-h2:mb-5 prose-h2:border-b prose-h2:border-neutral-200 prose-h2:pb-3",
+                    "prose-h3:mt-8 prose-h3:mb-3",
+                    "prose-p:mt-4 prose-p:mb-4",
+                    "prose-ul:mt-4 prose-ul:mb-6",
+                    "prose-li:mt-1",
+                    // Strong text
+                    "prose-strong:text-neutral-900",
+                    // Links
+                    "prose-a:text-neutral-900 prose-a:underline-offset-4 hover:prose-a:underline",
+                  ].join(" ")}
+                >
                   <p>
                     This Privacy Policy explains what data we collect, why we
                     collect it, how it is used, how it is stored, and how users
@@ -197,12 +211,13 @@ export default function PrivacyPolicyPage() {
                     <strong>We do NOT collect:</strong>
                   </p>
                   <ul>
-                    <li>Facebook personal profile data (beyond Page/admin context)</li>
+                    <li>
+                      Facebook personal profile data (beyond Page/admin context)
+                    </li>
                     <li>Private messages (DMs)</li>
                     <li>User passwords</li>
                     <li>Financial information</li>
                   </ul>
-                  <br></br>
 
                   <h2 id="why">2. Why We Collect This Data</h2>
                   <p>
@@ -248,18 +263,15 @@ export default function PrivacyPolicyPage() {
                       Displaying connected Page/account details inside the app UI
                     </li>
                     <li>
-                      Generating and showing content previews (drafts) for your review
+                      Generating and showing content previews (drafts) for your
+                      review
                     </li>
                     <li>
                       Publishing content to selected Facebook Pages and Instagram
                       accounts only after you initiate the publish action
                     </li>
-                    <li>
-                      Fetching engagement metrics for analytics dashboards
-                    </li>
-                    <li>
-                      Improving reliability, performance, and user experience
-                    </li>
+                    <li>Fetching engagement metrics for analytics dashboards</li>
+                    <li>Improving reliability, performance, and user experience</li>
                   </ul>
 
                   <p>
@@ -295,16 +307,16 @@ export default function PrivacyPolicyPage() {
                   </p>
                   <ul>
                     <li>
-                      Connected account data is retained until the user
-                      disconnects the account
+                      Connected account data is retained until the user disconnects
+                      the account
                     </li>
                     <li>
                       Analytics data may be retained for up to 12 months unless
                       deleted earlier by the user
                     </li>
                     <li>
-                      Logs and system records may be retained for security and
-                      audit purposes
+                      Logs and system records may be retained for security and audit
+                      purposes
                     </li>
                   </ul>
 
@@ -367,7 +379,8 @@ export default function PrivacyPolicyPage() {
 
                   <h2 id="meta">8. Compliance with Meta Platform Policies</h2>
                   <p>
-                    PostingExpert complies with applicable Meta policies and terms, including:
+                    PostingExpert complies with applicable Meta policies and terms,
+                    including:
                   </p>
                   <ul>
                     <li>Meta Platform Terms</li>
