@@ -8,6 +8,46 @@ import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { clearAuth } from "@/lib/auth";
+// ==========================
+// 🎤 Minimal Web Speech API types (works even if TS DOM libs don't include them)
+// ==========================
+type VoiceLang = "en-IN" | "hi-IN" | "te-IN";
+
+type SpeechRecognitionCtor = new () => ISpeechRecognition;
+
+interface ISpeechRecognition {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+
+  start: () => void;
+  stop: () => void;
+
+  onresult: ((event: ISpeechRecognitionEvent) => void) | null;
+  onerror: ((event: ISpeechRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
+}
+
+interface ISpeechRecognitionEvent {
+  resultIndex: number;
+  results: ArrayLike<ISpeechRecognitionResult>;
+}
+
+interface ISpeechRecognitionResult {
+  isFinal: boolean;
+  0: { transcript: string };
+}
+
+interface ISpeechRecognitionErrorEvent {
+  error: string;
+}
+
+declare global {
+  interface Window {
+    webkitSpeechRecognition?: SpeechRecognitionCtor;
+    SpeechRecognition?: SpeechRecognitionCtor;
+  }
+}
 
 // ✅ Use API Gateway for queue endpoints (AWS way)
 const GATEWAY =
@@ -19,6 +59,20 @@ type Platforms = {
   linkedin: boolean;
   facebook: boolean;
 };
+
+type VoiceLang = "en-IN" | "hi-IN" | "te-IN";
+
+// Web Speech API types (TS-safe)
+type SpeechRecognitionCtor = new () => SpeechRecognition;
+type SpeechRecognitionLike = SpeechRecognition;
+
+// Extend window for Chrome webkit
+declare global {
+  interface Window {
+    webkitSpeechRecognition?: SpeechRecognitionCtor;
+    SpeechRecognition?: SpeechRecognitionCtor;
+  }
+}
 
 export default function StudioPage() {
   const router = useRouter();
@@ -54,11 +108,155 @@ export default function StudioPage() {
     return saved === "true";
   });
 
+  // ==========================
+  // 🎤 VOICE INPUT STATE
+  // ==========================
+  const [voiceLang, setVoiceLang] = useState<VoiceLang>("en-IN");
+  const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState("");
+
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const finalTranscriptRef = useRef<string>(""); // committed transcript
+  const startedByUserRef = useRef<boolean>(false); // avoid auto restarts after stop
+
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
+
+  // Init SpeechRecognition once
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setVoiceError("Voice input isn't supported in this browser. Use Chrome.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = voiceLang;
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let interim = "";
+      let finalText = "";
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const chunk = event.results[i][0]?.transcript || "";
+        if (event.results[i].isFinal) finalText += chunk;
+        else interim += chunk;
+      }
+
+      if (finalText) {
+        finalTranscriptRef.current = (
+          (finalTranscriptRef.current || "") +
+          " " +
+          finalText
+        )
+          .replace(/\s+/g, " ")
+          .trim();
+        setPrompt(finalTranscriptRef.current);
+      } else if (interim) {
+        // show interim live while speaking
+        const live = ((finalTranscriptRef.current || "") + " " + interim)
+          .replace(/\s+/g, " ")
+          .trim();
+        setPrompt(live);
+      }
+    };
+
+    recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
+      // common: not-allowed, service-not-allowed, no-speech, audio-capture
+      setVoiceError(`Voice error: ${e.error}`);
+      setIsListening(false);
+      startedByUserRef.current = false;
+    };
+
+    recognition.onend = () => {
+      // If user didn't explicitly stop (Chrome can end automatically), keep UI accurate
+      setIsListening(false);
+      startedByUserRef.current = false;
+    };
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      try {
+        recognition.stop();
+      } catch (_) {}
+      recognitionRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Update recognition language when dropdown changes
+  useEffect(() => {
+    const r = recognitionRef.current;
+    if (!r) return;
+
+    // If currently listening, stop first, update lang, and allow user to restart
+    const wasListening = isListening;
+    if (wasListening) {
+      try {
+        r.stop();
+      } catch (_) {}
+      setIsListening(false);
+    }
+
+    r.lang = voiceLang;
+    // Do not auto restart; user controls start/stop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceLang]);
+
+  const startVoice = () => {
+    setVoiceError("");
+
+    const r = recognitionRef.current;
+    if (!r) {
+      setVoiceError("Voice input isn't supported here. Use Chrome desktop.");
+      return;
+    }
+
+    // base transcript should append to current prompt
+    finalTranscriptRef.current = (prompt || "").trim();
+
+    try {
+      startedByUserRef.current = true;
+      r.start();
+      setIsListening(true);
+    } catch (e) {
+      // start() can throw if called twice fast
+      setVoiceError("Could not start voice input. Try again.");
+      setIsListening(false);
+      startedByUserRef.current = false;
+    }
+  };
+
+  const stopVoice = () => {
+    const r = recognitionRef.current;
+    if (!r) return;
+
+    try {
+      r.stop();
+    } catch (_) {}
+
+    setIsListening(false);
+    startedByUserRef.current = false;
+
+    // Make sure prompt is committed (remove any interim)
+    setPrompt((prev) => prev.replace(/\s+/g, " ").trim());
+    finalTranscriptRef.current = (prompt || "").replace(/\s+/g, " ").trim();
+  };
+
+  const toggleVoice = () => {
+    if (isListening) stopVoice();
+    else startVoice();
+  };
 
   const handleSelectAll = () => {
     setPlatforms({ instagram: true, linkedin: true, facebook: true });
@@ -106,7 +304,6 @@ export default function StudioPage() {
         // ✅ Poll through API Gateway
         const { data } = await axios.get(`${GATEWAY}/queue/status/${id}`, {
           headers: {
-            // send auth if needed (safe)
             Authorization:
               typeof window !== "undefined" && localStorage.getItem("token")
                 ? `Bearer ${localStorage.getItem("token")}`
@@ -170,6 +367,10 @@ export default function StudioPage() {
     isRetry: boolean = false
   ) => {
     e?.preventDefault();
+
+    // ✅ auto-stop voice when user submits
+    if (isListening) stopVoice();
+
     if (!(validateForm() || isRetry)) return;
 
     const userId =
@@ -195,7 +396,7 @@ export default function StudioPage() {
     const payload = isRetry
       ? lastPayload
       : {
-          prompt,
+          prompt: prompt.trim(),
           numImages: Number(numImages),
           contentType,
           user_id: userId,
@@ -245,7 +446,11 @@ export default function StudioPage() {
   };
 
   const handleReset = () => {
+    // stop voice if running
+    if (isListening) stopVoice();
+
     setPrompt("");
+    finalTranscriptRef.current = "";
     setNumImages("");
     setContentType("");
     setPlatforms({ instagram: false, linkedin: false, facebook: false });
@@ -305,17 +510,74 @@ export default function StudioPage() {
             className="mt-8 rounded-2xl border border-border bg-card p-6"
           >
             <div className="space-y-5">
+              {/* Marketing Theme + Voice */}
               <div>
-                <label className="text-xs text-muted-foreground">
-                  Marketing Theme
-                </label>
-                <input
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none"
-                  placeholder="E.g., Promote eco-friendly products"
-                  required
-                />
+                <div className="flex items-center justify-between gap-3">
+                  <label className="text-xs text-muted-foreground">
+                    Marketing Theme
+                  </label>
+
+                  {/* Language dropdown */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-muted-foreground">
+                      Voice language
+                    </span>
+                    <select
+                      value={voiceLang}
+                      onChange={(e) => setVoiceLang(e.target.value as VoiceLang)}
+                      disabled={isBusy}
+                      className="rounded-lg border border-input bg-background px-2 py-1 text-xs outline-none disabled:opacity-60"
+                      title="Select voice language"
+                    >
+                      <option value="en-IN">English (IN)</option>
+                      <option value="hi-IN">Hindi (IN)</option>
+                      <option value="te-IN">Telugu (IN)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-2 flex items-center gap-3">
+                  <input
+                    value={prompt}
+                    onChange={(e) => {
+                      setPrompt(e.target.value);
+                      finalTranscriptRef.current = e.target.value; // keep voice base in sync
+                    }}
+                    className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none"
+                    placeholder="E.g., Promote eco-friendly products"
+                    required
+                    disabled={isBusy}
+                  />
+
+                  {/* Mic button */}
+                  <button
+                    type="button"
+                    onClick={toggleVoice}
+                    disabled={isBusy}
+                    className={[
+                      "h-11 w-11 shrink-0 rounded-xl border border-border bg-card text-sm font-medium",
+                      "hover:bg-muted disabled:opacity-60",
+                      isListening ? "ring-2 ring-primary" : "",
+                    ].join(" ")}
+                    title={isListening ? "Stop voice input" : "Start voice input"}
+                    aria-label={
+                      isListening ? "Stop voice input" : "Start voice input"
+                    }
+                  >
+                    {isListening ? "⏹️" : "🎤"}
+                  </button>
+                </div>
+
+                {/* Voice status + errors */}
+                <div className="mt-2 flex items-center justify-between">
+                  <div className="text-[11px] text-muted-foreground">
+                    {isListening ? "Listening… speak now" : "Voice input ready"}
+                  </div>
+                  {voiceError && (
+                    <div className="text-[11px] text-red-500">{voiceError}</div>
+                  )}
+                </div>
+
                 {errors.prompt && (
                   <p className="mt-2 text-xs text-red-500">{errors.prompt}</p>
                 )}
@@ -331,6 +593,7 @@ export default function StudioPage() {
                     onChange={(e) => setNumImages(e.target.value)}
                     className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none"
                     required
+                    disabled={isBusy}
                   >
                     <option value="" disabled>
                       Choose number
@@ -357,6 +620,7 @@ export default function StudioPage() {
                     onChange={(e) => setContentType(e.target.value)}
                     className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none"
                     required
+                    disabled={isBusy}
                   >
                     <option value="" disabled>
                       Choose style
