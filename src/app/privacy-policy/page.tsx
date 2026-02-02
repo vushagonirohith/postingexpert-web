@@ -202,6 +202,7 @@ export default function PrivacyPolicyPage() {
                     <li>User passwords</li>
                     <li>Financial information</li>
                   </ul>
+                  <br></br>
 
                   <h2 id="why">2. Why We Collect This Data</h2>
                   <p>
