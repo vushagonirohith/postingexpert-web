@@ -55,7 +55,9 @@ export default function PrivacyPolicyPage() {
             <p className="mt-5 text-base leading-relaxed text-neutral-700">
               PostingExpert (also referred to as “we”, “our”, or “the App”) is
               committed to protecting your privacy and complying with Facebook,
-              Instagram, and Meta Platform Policies.
+              Instagram, and Meta Platform Policies. We only access and process
+              data after you explicitly authorize us via Meta’s login/consent
+              screens.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -130,15 +132,31 @@ export default function PrivacyPolicyPage() {
 
             {/* Policy */}
             <article className="min-w-0">
-              <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm md:p-8">
-                <div className="prose prose-neutral max-w-none">
+              <div className="rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm md:p-10">
+                <div
+                  className={[
+                    "prose prose-neutral max-w-none leading-relaxed",
+                    // Section spacing + separators
+                    "prose-h2:mt-14 prose-h2:mb-5 prose-h2:border-b prose-h2:border-neutral-200 prose-h2:pb-3",
+                    "prose-h3:mt-8 prose-h3:mb-3",
+                    "prose-p:mt-4 prose-p:mb-4",
+                    "prose-ul:mt-4 prose-ul:mb-6",
+                    "prose-li:mt-1",
+                    // Strong text
+                    "prose-strong:text-neutral-900",
+                    // Links
+                    "prose-a:text-neutral-900 prose-a:underline-offset-4 hover:prose-a:underline",
+                  ].join(" ")}
+                >
                   <p>
                     This Privacy Policy explains what data we collect, why we
                     collect it, how it is used, how it is stored, and how users
                     can control or delete their data when using our application.
+                    We do not sell your data, and we do not use your data for
+                    advertising profiling outside the app.
                   </p>
 
-                  <h2 id="info">1. Information We Collect</h2>
+                  <h2 id="info"><strong>1. Information We Collect</strong></h2>
                   <p>
                     When you connect your Facebook or Instagram account to
                     PostingExpert, we may collect the following information only
@@ -154,7 +172,10 @@ export default function PrivacyPolicyPage() {
                       Page-level engagement metrics (likes, comments, shares,
                       reach)
                     </li>
-                    <li>Content posted via our app (images, captions, PDFs)</li>
+                    <li>
+                      Content you publish through our app (images, captions,
+                      PDFs)
+                    </li>
                   </ul>
 
                   <h3>b. Instagram Data (Professional Accounts Only)</h3>
@@ -172,13 +193,11 @@ export default function PrivacyPolicyPage() {
 
                   <h3>c. Content Data</h3>
                   <ul>
-                    <li>User-generated prompts and topics</li>
+                    <li>User-submitted prompts and topics</li>
+                    <li>Generated drafts (images/captions/content) for preview</li>
                     <li>
-                      AI-generated images, captions, and educational content
-                    </li>
-                    <li>
-                      Scheduled or published post metadata (timestamps,
-                      platform)
+                      Published post metadata (timestamps, platform, linked Page/
+                      account)
                     </li>
                   </ul>
 
@@ -192,13 +211,15 @@ export default function PrivacyPolicyPage() {
                     <strong>We do NOT collect:</strong>
                   </p>
                   <ul>
-                    <li>Facebook personal profile data</li>
+                    <li>
+                      Facebook personal profile data (beyond Page/admin context)
+                    </li>
                     <li>Private messages (DMs)</li>
                     <li>User passwords</li>
                     <li>Financial information</li>
                   </ul>
 
-                  <h2 id="why">2. Why We Collect This Data</h2>
+                  <h2 id="why"><strong>2. Why We Collect This Data</strong></h2>
                   <p>
                     We collect and process this data strictly to provide our
                     core functionality:
@@ -206,59 +227,77 @@ export default function PrivacyPolicyPage() {
                   <ul>
                     <li>
                       To connect and verify Facebook Pages and Instagram
-                      Business accounts
+                      Professional accounts you choose to connect
                     </li>
                     <li>
-                      To publish content (images, captions, educational posts)
-                      on behalf of users
+                      To allow you to create content drafts and preview them
+                      inside the dashboard
                     </li>
-                    <li>To display connected accounts inside the dashboard</li>
                     <li>
-                      To analyze post performance and show engagement analytics
+                      To publish content only when you explicitly choose to
+                      publish (user-initiated actions)
                     </li>
-                    <li>To allow users to manage multiple Pages and accounts</li>
                     <li>
-                      To provide automation features explicitly requested by the
-                      user
+                      To display connected account details inside the app UI
+                    </li>
+                    <li>
+                      To fetch engagement analytics and show performance insights
+                      for content published through the app
+                    </li>
+                    <li>
+                      To help you manage multiple Pages/accounts you administer
                     </li>
                   </ul>
                   <p>
-                    Without these permissions, PostingExpert cannot function as
-                    an automated social media marketing platform.
+                    Without these permissions, PostingExpert cannot provide
+                    user-initiated publishing and analytics features.
                   </p>
 
-                  <h2 id="use">3. How We Use the Data</h2>
+                  <h2 id="use"><strong>3. How We Use the Data</strong></h2>
                   <p>
                     Your data is used only within the scope explicitly approved
                     by you, including:
                   </p>
                   <ul>
                     <li>
-                      Posting AI-generated content to selected Facebook Pages
-                      and Instagram accounts
+                      Displaying connected Page/account details inside the app UI
                     </li>
-                    <li>Displaying connected account details inside the app UI</li>
+                    <li>
+                      Generating and showing content previews (drafts) for your
+                      review
+                    </li>
+                    <li>
+                      Publishing content to selected Facebook Pages and Instagram
+                      accounts only after you initiate the publish action
+                    </li>
                     <li>Fetching engagement metrics for analytics dashboards</li>
-                    <li>Scheduling posts at user-defined times</li>
                     <li>Improving reliability, performance, and user experience</li>
                   </ul>
+
+                  <p>
+                    <strong>Manual user control:</strong> PostingExpert does not
+                    publish content without your explicit action in the app. If
+                    the app supports “scheduled publishing”, it only runs for
+                    the exact content and time you configured and confirmed.
+                  </p>
+
                   <p>
                     We do not sell, rent, or use your data for advertising or
                     profiling outside the app.
                   </p>
 
-                  <h2 id="retention">4. Data Storage &amp; Retention</h2>
+                  <h2 id="retention"><strong>4. Data Storage &amp; Retention</strong></h2>
                   <ul>
                     <li>Access tokens are stored securely in encrypted form</li>
                     <li>
-                      Tokens are retained only while the account remains
-                      connected
+                      Tokens are retained only while the account remains connected
                     </li>
                     <li>
-                      Tokens are refreshed automatically as required by Meta APIs
+                      Tokens may be refreshed as required by Meta APIs to keep the
+                      connection working
                     </li>
                     <li>
-                      Post metadata and analytics are stored for reporting
+                      Post metadata and analytics may be stored for reporting
                       purposes
                     </li>
                   </ul>
@@ -268,20 +307,20 @@ export default function PrivacyPolicyPage() {
                   </p>
                   <ul>
                     <li>
-                      Connected account data is retained until the user
-                      disconnects the account
+                      Connected account data is retained until the user disconnects
+                      the account
                     </li>
                     <li>
                       Analytics data may be retained for up to 12 months unless
                       deleted earlier by the user
                     </li>
                     <li>
-                      Logs and system records may be retained for security and
-                      audit purposes
+                      Logs and system records may be retained for security and audit
+                      purposes
                     </li>
                   </ul>
 
-                  <h2 id="sharing">5. Data Sharing &amp; Third-Party Processors</h2>
+                  <h2 id="sharing"><strong>5. Data Sharing &amp; Third-Party Processors</strong></h2>
                   <p>
                     We do not sell or share data with third parties for marketing
                     purposes.
@@ -293,16 +332,15 @@ export default function PrivacyPolicyPage() {
                   <ul>
                     <li>
                       <strong>Amazon Web Services (AWS)</strong> (EC2, S3, Lambda,
-                      DynamoDB) — used for secure hosting, storage, processing,
-                      and automation.
+                      DynamoDB) — used for secure hosting, storage, and processing.
                     </li>
                   </ul>
                   <p>
-                    All processors comply with industry-standard security and
-                    data protection practices.
+                    Data shared with processors is limited to what is required to
+                    operate the service. No data is sold.
                   </p>
 
-                  <h2 id="control">6. User Control &amp; Revoking Access</h2>
+                  <h2 id="control"><strong>6. User Control &amp; Revoking Access</strong></h2>
                   <p>Users are always in control of their data.</p>
                   <p>You can revoke access at any time by:</p>
                   <ul>
@@ -319,14 +357,14 @@ export default function PrivacyPolicyPage() {
                     <li>No further data is accessed or processed</li>
                   </ul>
 
-                  <h2 id="deletion">7. Data Deletion</h2>
+                  <h2 id="deletion"><strong>7. Data Deletion</strong></h2>
                   <p>Users may request complete deletion of their data at any time.</p>
                   <p>
                     <strong>How to request deletion:</strong>
                   </p>
                   <ul>
                     <li>
-                      In-app: Use the “Delete Account / Delete Data” option (if available)
+                      In-app: Use the “Delete Account / Delete Data” option (can be accessed via settings)
                     </li>
                     <li>
                       Email: Send a request to <strong>contact@inikola.com</strong>
@@ -339,19 +377,23 @@ export default function PrivacyPolicyPage() {
                   </ul>
                   <p>We will process deletion requests within 7 business days.</p>
 
-                  <h2 id="meta">8. Compliance with Meta Platform Policies</h2>
-                  <p>PostingExpert complies with:</p>
+                  <h2 id="meta"><strong>8. Compliance with Meta Platform Policies</strong></h2>
+                  <p>
+                    PostingExpert complies with applicable Meta policies and terms,
+                    including:
+                  </p>
                   <ul>
                     <li>Meta Platform Terms</li>
                     <li>Facebook Developer Policies</li>
                     <li>Instagram Graph API Terms</li>
                   </ul>
                   <p>
-                    We access only the data necessary to provide approved
-                    functionality and only after user consent.
+                    We access only the minimum data necessary to provide the approved
+                    user-initiated publishing and analytics features, and only after
+                    you provide consent through Meta authorization.
                   </p>
 
-                  <h2 id="security">9. Security Measures</h2>
+                  <h2 id="security"><strong>9. Security Measures</strong></h2>
                   <p>We implement industry-standard security practices including:</p>
                   <ul>
                     <li>HTTPS encryption</li>
@@ -360,13 +402,13 @@ export default function PrivacyPolicyPage() {
                     <li>Regular monitoring and logging</li>
                   </ul>
 
-                  <h2 id="changes">10. Changes to This Policy</h2>
+                  <h2 id="changes"><strong>10. Changes to This Policy</strong></h2>
                   <p>
                     We may update this Privacy Policy periodically. Any changes
                     will be posted on this page with an updated revision date.
                   </p>
 
-                  <h2 id="contact">11. Contact Information</h2>
+                  <h2 id="contact"><strong>11. Contact Information</strong></h2>
                   <ul>
                     <li>
                       <strong>Company Name:</strong> Inikola Technologies Private Limited
@@ -415,7 +457,7 @@ export default function PrivacyPolicyPage() {
                     Back to PostingExpert
                   </p>
                   <p className="mt-1 text-sm text-neutral-700">
-                    Return and continue managing your automations.
+                    Return and continue managing your content.
                   </p>
                   <div className="mt-4">
                     <Link
