@@ -72,11 +72,21 @@ export function SiteNavbar() {
               </Link>
 
               <Link
+                href="/gallery"
+                className="rounded-full px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                Gallery
+              </Link>
+
+              <Link
                 href="/settings"
                 className="rounded-full px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 Settings
               </Link>
+
+
+
             </>
           )}
         </nav>
