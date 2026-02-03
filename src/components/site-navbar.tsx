@@ -84,16 +84,13 @@ export function SiteNavbar() {
               >
                 Settings
               </Link>
-
-
-
             </>
           )}
         </nav>
 
         {/* Right actions */}
         <div className="flex items-center gap-2">
-          {/* ✅ Mobile menu button (only on phone) */}
+          {/* ✅ Mobile menu button */}
           <button
             type="button"
             onClick={() => setMobileOpen((v) => !v)}
@@ -180,6 +177,14 @@ export function SiteNavbar() {
                     className="rounded-xl px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
                   >
                     Analytics
+                  </Link>
+
+                  {/* ✅ ADD THIS */}
+                  <Link
+                    href="/gallery"
+                    className="rounded-xl px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                  >
+                    Gallery
                   </Link>
 
                   <Link
