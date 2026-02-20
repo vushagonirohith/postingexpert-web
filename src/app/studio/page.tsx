@@ -11,7 +11,7 @@ import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { clearAuth } from "@/lib/auth";
 
 // ==========================
-// 🎤 Minimal Web Speech API types (works even if TS DOM libs don't include them)
+// 🎤 Minimal Web Speech API types
 // ==========================
 type VoiceLang = "en-IN" | "hi-IN" | "te-IN";
 
@@ -56,6 +56,14 @@ const GATEWAY =
   process.env.NEXT_PUBLIC_GATEWAY_BASE_URL ||
   "https://4fqbpp1yya.execute-api.ap-south-1.amazonaws.com/prod";
 
+// ✅ LinkedIn Post API base (NO leading spaces!)
+const POST_API_BASE =
+  process.env.NEXT_PUBLIC_POST_API_BASE_URL ||
+  "https://kq3qw8hre9.execute-api.ap-south-1.amazonaws.com/default";
+
+const POST_ROUTE =
+  process.env.NEXT_PUBLIC_POST_API_ROUTE || "/post";
+
 type Platforms = {
   instagram: boolean;
   linkedin: boolean;
@@ -73,6 +81,7 @@ type JobResult = {
   pdf_url?: string;
   result?: string;
   output?: string;
+  draft_id?: string;
   [key: string]: unknown;
 };
 
@@ -101,7 +110,15 @@ export default function StudioPage() {
   const [result, setResult] = useState<JobResult | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
-  const [lastPayload, setLastPayload] = useState<Record<string, unknown> | null>(null);
+  const [lastPayload, setLastPayload] = useState<Record<string, unknown> | null>(
+    null
+  );
+
+  // ✅ draft + post state
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [isPosting, setIsPosting] = useState(false);
+  const [postStatus, setPostStatus] = useState<"POSTED" | "FAILED" | null>(null);
+  const [postMessage, setPostMessage] = useState<string>("");
 
   // Meme Mode
   const [isMemeMode, setIsMemeMode] = useState<boolean>(() => {
@@ -118,10 +135,10 @@ export default function StudioPage() {
   const [voiceError, setVoiceError] = useState("");
 
   const recognitionRef = useRef<ISpeechRecognition | null>(null);
-  const finalTranscriptRef = useRef<string>(""); // committed transcript
-  const startedByUserRef = useRef<boolean>(false); // avoid auto restarts after stop
+  const finalTranscriptRef = useRef<string>("");
+  const startedByUserRef = useRef<boolean>(false);
 
-  // ✅ Upload UI (ChatGPT-style +)
+  // ✅ Upload UI
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -129,7 +146,6 @@ export default function StudioPage() {
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
-      // cleanup preview urls
       uploads.forEach((u) => URL.revokeObjectURL(u.previewUrl));
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -172,7 +188,6 @@ export default function StudioPage() {
           .trim();
         setPrompt(finalTranscriptRef.current);
       } else if (interim) {
-        // show interim live while speaking
         const live = ((finalTranscriptRef.current || "") + " " + interim)
           .replace(/\s+/g, " ")
           .trim();
@@ -181,14 +196,12 @@ export default function StudioPage() {
     };
 
     recognition.onerror = (e: ISpeechRecognitionErrorEvent) => {
-      // common: not-allowed, service-not-allowed, no-speech, audio-capture
       setVoiceError(`Voice error: ${e.error}`);
       setIsListening(false);
       startedByUserRef.current = false;
     };
 
     recognition.onend = () => {
-      // If user didn't explicitly stop (Chrome can end automatically), keep UI accurate
       setIsListening(false);
       startedByUserRef.current = false;
     };
@@ -204,12 +217,11 @@ export default function StudioPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Update recognition language when dropdown changes
+  // Update recognition language
   useEffect(() => {
     const r = recognitionRef.current;
     if (!r) return;
 
-    // If currently listening, stop first, update lang, and allow user to restart
     const wasListening = isListening;
     if (wasListening) {
       try {
@@ -219,7 +231,6 @@ export default function StudioPage() {
     }
 
     r.lang = voiceLang;
-    // Do not auto restart; user controls start/stop
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voiceLang]);
 
@@ -232,7 +243,6 @@ export default function StudioPage() {
       return;
     }
 
-    // base transcript should append to current prompt
     finalTranscriptRef.current = (prompt || "").trim();
 
     try {
@@ -240,7 +250,6 @@ export default function StudioPage() {
       r.start();
       setIsListening(true);
     } catch {
-      // start() can throw if called twice fast
       setVoiceError("Could not start voice input. Try again.");
       setIsListening(false);
       startedByUserRef.current = false;
@@ -258,7 +267,6 @@ export default function StudioPage() {
     setIsListening(false);
     startedByUserRef.current = false;
 
-    // Make sure prompt is committed (remove any interim)
     setPrompt((prev) => prev.replace(/\s+/g, " ").trim());
     finalTranscriptRef.current = (prompt || "").replace(/\s+/g, " ").trim();
   };
@@ -297,13 +305,13 @@ export default function StudioPage() {
   };
 
   const extractResultFromStatus = (data: Record<string, unknown>) => {
-    const meta = (data as Record<string, unknown>)?.meta as Record<string, unknown> | undefined || {};
-    return (meta as Record<string, unknown>).result || (data as Record<string, unknown>).result || (data as Record<string, unknown>).output || null;
+    const meta = ((data as any)?.meta as Record<string, unknown>) || {};
+    return (meta as any).result || (data as any).result || (data as any).output || null;
   };
 
   const extractErrorFromStatus = (data: Record<string, unknown>) => {
-    const meta = (data as Record<string, unknown>)?.meta || {};
-    return (meta as Record<string, unknown>).error || (data as Record<string, unknown>).error || null;
+    const meta = (data as any)?.meta || {};
+    return (meta as any).error || (data as any).error || null;
   };
 
   const pollStatus = (id: string) => {
@@ -311,7 +319,6 @@ export default function StudioPage() {
 
     pollRef.current = setInterval(async () => {
       try {
-        // ✅ Poll through API Gateway
         const { data } = await axios.get(`${GATEWAY}/queue/status/${id}`, {
           headers: {
             Authorization:
@@ -326,6 +333,19 @@ export default function StudioPage() {
         if (data?.status === "completed") {
           const r = extractResultFromStatus(data) as JobResult | null;
           setResult(r);
+
+          // ✅ capture draft_id from possible places
+          const did =
+            (data?.draft_id as string) ||
+            (r?.draft_id as string) ||
+            (data?.meta?.draft_id as string) ||
+            (data?.meta?.result?.draft_id as string) ||
+            null;
+
+          setDraftId(did);
+          setPostStatus(null);
+          setPostMessage("");
+
           setResponseMessage(
             "🎉 Content generated successfully! Check your email for download links."
           );
@@ -336,7 +356,8 @@ export default function StudioPage() {
           pollRef.current = null;
         } else if (data?.status === "failed") {
           const errText =
-            (extractErrorFromStatus(data) as string) || "Job failed. Please try again.";
+            (extractErrorFromStatus(data) as string) ||
+            "Job failed. Please try again.";
           setIsLoading(false);
           setIsError(true);
           setResponseMessage(errText);
@@ -364,7 +385,6 @@ export default function StudioPage() {
     };
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
-    // ✅ Enqueue through API Gateway
     const { data } = await axios.post(`${GATEWAY}/queue/enqueue`, payload, {
       headers,
     });
@@ -372,12 +392,64 @@ export default function StudioPage() {
     return data;
   };
 
+const handlePostNow = async () => {
+  if (!jobId) {
+    setPostStatus("FAILED");
+    setPostMessage("job_id missing. Generate again.");
+    return;
+  }
+
+  setIsPosting(true);
+  setPostStatus(null);
+  setPostMessage("");
+
+  try {
+    // ✅ Use env if present, else your hardcoded gateway
+    const base =
+      process.env.NEXT_PUBLIC_POST_API_BASE_URL ||
+      "https://rvchtw1mu0.execute-api.ap-south-1.amazonaws.com/prod";
+
+    const route = process.env.NEXT_PUBLIC_POST_API_ROUTE || "/post";
+    const url = `${base}${route}`;
+
+    const { data } = await axios.post(
+      url,
+      { job_id: jobId },
+      {
+        headers: { "Content-Type": "application/json" },
+        timeout: 120000,
+      }
+    );
+
+    if (data?.success === false) {
+      throw { response: { data } };
+    }
+
+    setPostStatus("POSTED");
+    setPostMessage("✅ Posted successfully!");
+    console.log("POST OK:", data);
+  } catch (err: any) {
+    console.log("POST ERROR RAW:", err);
+
+    const msg =
+      err?.response?.data?.error ||
+      err?.response?.data?.message ||
+      (err?.response ? `HTTP ${err.response.status}` : "No response (CORS/Network)") ||
+      err?.message ||
+      "Post failed";
+
+    setPostStatus("FAILED");
+    setPostMessage(msg);
+  } finally {
+    setIsPosting(false);
+  }
+};
+
   // ✅ Upload handlers
   const addFiles = (files: FileList | File[]) => {
     const list = Array.from(files || []);
     if (!list.length) return;
 
-    // only images
     const imageOnly = list.filter((f) => f.type.startsWith("image/"));
     if (!imageOnly.length) return;
 
@@ -389,7 +461,6 @@ export default function StudioPage() {
           .slice(2)}`;
         next.push({ id, file, previewUrl: URL.createObjectURL(file) });
       }
-      // optional: cap count
       return next.slice(0, 12);
     });
   };
@@ -415,13 +486,9 @@ export default function StudioPage() {
     if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files);
   };
 
-  const handleSubmit = async (
-    e?: React.FormEvent,
-    isRetry: boolean = false
-  ) => {
+  const handleSubmit = async (e?: React.FormEvent, isRetry: boolean = false) => {
     e?.preventDefault();
 
-    // ✅ auto-stop voice when user submits
     if (isListening) stopVoice();
 
     if (!(validateForm() || isRetry)) return;
@@ -446,8 +513,12 @@ export default function StudioPage() {
     setJobStatus(null);
     setJobId(null);
 
-    // NOTE: uploads are UI-only right now.
-    // If you want to send them: upload to S3 first (presigned URLs) and add `asset_urls`..
+    // reset posting state
+    setDraftId(null);
+    setIsPosting(false);
+    setPostStatus(null);
+    setPostMessage("");
+
     const payload = isRetry
       ? lastPayload
       : {
@@ -463,7 +534,6 @@ export default function StudioPage() {
           },
           meme: isMemeMode,
           meme_mode: isMemeMode,
-          // asset_count: uploads.length, // optional, purely informative
         };
 
     setLastPayload(payload);
@@ -476,9 +546,7 @@ export default function StudioPage() {
 
       setJobId(job_id);
       setJobStatus("queued");
-      setResponseMessage(
-        "✅ Request queued successfully! You'll get updates by email."
-      );
+      setResponseMessage("✅ Request queued successfully! You'll get updates by email.");
       setIsError(false);
 
       pollStatus(job_id);
@@ -486,7 +554,11 @@ export default function StudioPage() {
       setIsLoading(false);
       setIsError(true);
 
-      const error = err as { response?: { status?: number; data?: { error?: string } }; message?: string };
+      const error = err as {
+        response?: { status?: number; data?: { error?: string } };
+        message?: string;
+      };
+
       const msg =
         (error.response?.data?.error as string) ||
         (error.message as string) ||
@@ -503,7 +575,6 @@ export default function StudioPage() {
   };
 
   const handleReset = () => {
-    // stop voice if running
     if (isListening) stopVoice();
 
     setPrompt("");
@@ -518,6 +589,13 @@ export default function StudioPage() {
     setResult(null);
     setJobStatus(null);
     setJobId(null);
+
+    // reset posting state
+    setDraftId(null);
+    setIsPosting(false);
+    setPostStatus(null);
+    setPostMessage("");
+
     clearUploads();
 
     if (pollRef.current) clearInterval(pollRef.current);
@@ -613,7 +691,6 @@ export default function StudioPage() {
                     Marketing Theme / Prompt
                   </label>
 
-                  {/* Language dropdown */}
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] text-muted-foreground">
                       Voice language
@@ -637,7 +714,7 @@ export default function StudioPage() {
                     value={prompt}
                     onChange={(e) => {
                       setPrompt(e.target.value);
-                      finalTranscriptRef.current = e.target.value; // keep voice base in sync
+                      finalTranscriptRef.current = e.target.value;
                     }}
                     className="min-h-[110px] w-full resize-none rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
                     placeholder="Example: Launch a premium winter sale for a D2C brand. Make it bold, minimal."
@@ -645,7 +722,6 @@ export default function StudioPage() {
                     disabled={isBusy}
                   />
 
-                  {/* Mic button */}
                   <button
                     type="button"
                     onClick={toggleVoice}
@@ -656,15 +732,12 @@ export default function StudioPage() {
                       isListening ? "ring-2 ring-primary" : "",
                     ].join(" ")}
                     title={isListening ? "Stop voice input" : "Start voice input"}
-                    aria-label={
-                      isListening ? "Stop voice input" : "Start voice input"
-                    }
+                    aria-label={isListening ? "Stop voice input" : "Start voice input"}
                   >
                     {isListening ? "⏹️" : "🎤"}
                   </button>
                 </div>
 
-                {/* Voice status + errors */}
                 <div className="mt-2 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="text-[11px] text-muted-foreground">
@@ -729,7 +802,6 @@ export default function StudioPage() {
                   ].join(" ")}
                 >
                   <div className="flex items-center gap-3">
-                    {/* ChatGPT-like + button */}
                     <button
                       type="button"
                       disabled={isBusy}
@@ -746,7 +818,8 @@ export default function StudioPage() {
                         Add images to guide the design
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Drag & drop or click <span className="font-medium">+</span> (PNG/JPG/WebP). Up to 12.
+                        Drag & drop or click <span className="font-medium">+</span>{" "}
+                        (PNG/JPG/WebP). Up to 12.
                       </p>
                     </div>
 
@@ -758,13 +831,11 @@ export default function StudioPage() {
                       hidden
                       onChange={(e) => {
                         if (e.target.files) addFiles(e.target.files);
-                        // reset input so same file can be selected again
                         e.currentTarget.value = "";
                       }}
                     />
                   </div>
 
-                  {/* Previews */}
                   {uploads.length > 0 && (
                     <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
                       {uploads.map((u) => (
@@ -772,7 +843,6 @@ export default function StudioPage() {
                           key={u.id}
                           className="group relative overflow-hidden rounded-xl border border-border bg-card"
                         >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={u.previewUrl}
                             alt={u.file.name}
@@ -817,9 +887,7 @@ export default function StudioPage() {
                     ))}
                   </select>
                   {errors.numImages && (
-                    <p className="mt-2 text-xs text-red-500">
-                      {errors.numImages}
-                    </p>
+                    <p className="mt-2 text-xs text-red-500">{errors.numImages}</p>
                   )}
                 </div>
 
@@ -837,16 +905,20 @@ export default function StudioPage() {
                     <option value="" disabled>
                       Choose style
                     </option>
-                    {[{ value: "Informative", label: "📚 Informative" },{ value: "Inspirational", label: "💫 Inspirational" },{ value: "Promotional", label: "🎉 Promotional" },{ value: "Educational", label: "🎓 Educational" },{ value: "Engaging", label: "🔥 Engaging" }].map((t) => (
+                    {[
+                      { value: "Informative", label: "📚 Informative" },
+                      { value: "Inspirational", label: "💫 Inspirational" },
+                      { value: "Promotional", label: "🎉 Promotional" },
+                      { value: "Educational", label: "🎓 Educational" },
+                      { value: "Engaging", label: "🔥 Engaging" },
+                    ].map((t) => (
                       <option key={t.value} value={t.value}>
                         {t.label}
                       </option>
                     ))}
                   </select>
                   {errors.contentType && (
-                    <p className="mt-2 text-xs text-red-500">
-                      {errors.contentType}
-                    </p>
+                    <p className="mt-2 text-xs text-red-500">{errors.contentType}</p>
                   )}
                 </div>
               </div>
@@ -913,12 +985,10 @@ export default function StudioPage() {
                       <span className="text-sm">{label}</span>
                     </label>
                   ))}
-                </div> 
+                </div>
 
                 {errors.platforms && (
-                  <p className="mt-2 text-xs text-red-500">
-                    {errors.platforms}
-                  </p>
+                  <p className="mt-2 text-xs text-red-500">{errors.platforms}</p>
                 )}
               </div>
 
@@ -929,7 +999,7 @@ export default function StudioPage() {
                   disabled={isBusy}
                   className="w-full rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground disabled:opacity-60"
                 >
-                  {isBusy ? statusLabel : "Generate & Post"}
+                  {isBusy ? statusLabel : "Generate"}
                 </button>
               </div>
 
@@ -986,6 +1056,41 @@ export default function StudioPage() {
                   </div>
                 </div>
 
+                {/* ✅ POST BUTTON */}
+                {jobStatus === "completed" && jobId && platforms.linkedin &&  (
+                  <div className="mt-5">
+                    <button
+                      type="button"
+                      onClick={handlePostNow}
+                      disabled={isPosting || postStatus === "POSTED"}
+                      className="w-full rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
+                    >
+                      {isPosting
+                        ? "Posting..."
+                        : postStatus === "POSTED"
+                        ? "Posted ✅"
+                        : "Post to LinkedIn"}
+                    </button>
+
+                    {postMessage && (
+                      <div
+                        className={[
+                          "mt-3 rounded-2xl border p-3 text-xs",
+                          postStatus === "FAILED"
+                            ? "border-red-500/40 bg-red-500/10"
+                            : "border-emerald-500/40 bg-emerald-500/10",
+                        ].join(" ")}
+                      >
+                        {postMessage}
+                      </div>
+                    )}
+
+                    <div className="mt-2 text-[11px] text-muted-foreground">
+                      Draft ID: <span className="font-medium">{draftId}</span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-5 rounded-2xl border border-border bg-background p-4">
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     Pro tip: If you upload references, we can later use them to
@@ -998,7 +1103,7 @@ export default function StudioPage() {
                 <div className="rounded-2xl border border-border bg-card p-6">
                   <h3 className="text-sm font-semibold">Generated Images</h3>
                   <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {result?.image_urls?.map((url: string, i: number) => (
+                    {result.image_urls.map((url: string, i: number) => (
                       <a
                         key={i}
                         href={url}
