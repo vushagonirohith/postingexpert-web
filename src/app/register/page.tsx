@@ -553,9 +553,7 @@ export default function RegisterPage() {
   const toggleGoal = (goal: string) => {
     setForm((prev) => {
       const exists = prev.goals.includes(goal);
-      const next = exists
-        ? prev.goals.filter((g) => g !== goal)
-        : [...prev.goals, goal].slice(0, 3); // limit to 3
+      const next = exists ? prev.goals.filter((g) => g !== goal) : [...prev.goals, goal].slice(0, 3); // limit to 3
       return { ...prev, goals: next };
     });
   };
@@ -596,7 +594,7 @@ export default function RegisterPage() {
     });
   };
 
-  // ✅ NEW: extras handlers
+  // ✅ extras handlers
   const setExtra = (id: string, value: any) => {
     setForm((p) => ({
       ...p,
@@ -628,6 +626,13 @@ export default function RegisterPage() {
       if (form.brandName.trim().length < 2) return false;
       if (!form.industry) return false;
       if (!form.tone) return false;
+
+      // ✅ NEW: if user selects Other, require business description in Brand step itself
+      if (form.industry === "Other") {
+        const desc = String(form.surveyExtras?.business_description || "").trim();
+        if (desc.length < 10) return false; // min length
+      }
+
       return true;
     }
 
@@ -636,7 +641,7 @@ export default function RegisterPage() {
       if (!form.frequency) return false;
       if (!form.postScheduleTime) return false;
 
-      // ✅ NEW: validate required industry questions
+      // ✅ validate required industry questions
       const requiredQs = activeIndustryQuestions.filter((q) => q.required);
       for (const q of requiredQs) {
         const v = (form.surveyExtras || {})[q.id];
@@ -681,8 +686,7 @@ export default function RegisterPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // ---- ✅ SUBMIT (FIXED for your current backend) ----
-  // Your backend saves survey inside /user/register when payload has surveyData.
+  // ---- ✅ SUBMIT ----
   const onSubmitAll = async () => {
     if (loading) return;
 
@@ -702,7 +706,16 @@ export default function RegisterPage() {
       return;
     }
 
-    // ✅ also enforce required industry questions at submit
+    // ✅ enforce Other business description at submit
+    if (form.industry === "Other") {
+      const desc = String(form.surveyExtras?.business_description || "").trim();
+      if (desc.length < 10) {
+        setErrorMsg("Please describe your business (Industry: Other).");
+        return;
+      }
+    }
+
+    // ✅ enforce required industry questions at submit
     const requiredQs = activeIndustryQuestions.filter((q) => q.required);
     for (const q of requiredQs) {
       const v = (form.surveyExtras || {})[q.id];
@@ -721,7 +734,7 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      // 1) REGISTER user (normal register)
+      // 1) REGISTER user
       const registerPayload = {
         name: form.fullName.trim(),
         email: form.email.toLowerCase().trim(),
@@ -739,7 +752,6 @@ export default function RegisterPage() {
 
       localStorage.setItem("registeredUserId", form.username.trim());
       localStorage.setItem("username", form.username.trim());
-      // 🆕 Store email for HubSpot
       localStorage.setItem("userEmail", form.email.toLowerCase().trim());
 
       if (token) {
@@ -751,7 +763,7 @@ export default function RegisterPage() {
         });
       }
 
-      // 🆕 RECORD USER IN HUBSPOT CRM (non-blocking)
+      // 1.1) HUBSPOT (non-blocking)
       try {
         await HubSpotCRMService.createContact(
           form.email.toLowerCase().trim(),
@@ -760,7 +772,6 @@ export default function RegisterPage() {
         );
         console.log("✅ User registered in HubSpot CRM");
       } catch (crmError) {
-        // Don't fail registration if CRM fails
         console.warn("⚠️ HubSpot CRM error (non-fatal):", crmError);
       }
 
@@ -768,11 +779,9 @@ export default function RegisterPage() {
       const colors = form.colors.slice(0, form.numColors);
 
       const answers: Record<string, any> = {
-        // ✅ keep the keys your get_profile reads
         post_schedule_time: form.postScheduleTime,
         color_theme: colors,
 
-        // ✅ other useful fields (safe to store)
         brand_name: form.brandName.trim(),
         tone: form.tone,
         goals: form.goals,
@@ -780,17 +789,15 @@ export default function RegisterPage() {
         frequency: form.frequency,
         contact_details: form.contactDetails,
 
-        // ✅ logo in the exact structure upload_logo_to_s3 expects
         business_logo: form.logoFile
           ? {
               fileName: form.logoFile.name,
               fileType: form.logoFile.type,
               fileSize: form.logoFile.size,
-              data: form.logoPreview, // data-url (your backend already strips prefix)
+              data: form.logoPreview,
             }
           : null,
 
-        // ✅ NEW: include old Survey.js "important questions"
         ...form.surveyExtras,
       };
 
@@ -808,7 +815,6 @@ export default function RegisterPage() {
         body: surveyPayload,
       });
 
-      // local storage convenience
       localStorage.setItem("brand_name", form.brandName.trim());
       localStorage.setItem("business_type", form.industry);
 
@@ -936,7 +942,9 @@ export default function RegisterPage() {
                       disabled={!stepValid}
                       className={[
                         "rounded-full px-5 py-2 text-sm font-medium shadow-sm transition",
-                        stepValid ? "bg-primary text-primary-foreground hover:opacity-90" : "bg-muted text-muted-foreground cursor-not-allowed",
+                        stepValid
+                          ? "bg-primary text-primary-foreground hover:opacity-90"
+                          : "bg-muted text-muted-foreground cursor-not-allowed",
                       ].join(" ")}
                     >
                       Next →
@@ -1003,9 +1011,7 @@ export default function RegisterPage() {
                               Letters, numbers, underscores only. Min 3 characters.
                             </p>
                           ) : usernameLooksValid(form.username) ? null : (
-                            <p className="mt-2 text-xs text-destructive">
-                              Username must be 3+ chars and only letters/numbers/_.
-                            </p>
+                            <p className="mt-2 text-xs text-destructive">Username must be 3+ chars and only letters/numbers/_.</p>
                           )}
                         </div>
 
@@ -1074,6 +1080,25 @@ export default function RegisterPage() {
                               </option>
                             ))}
                           </select>
+
+                          {/* ✅ NEW: when industry is Other show a box here */}
+                          {form.industry === "Other" ? (
+                            <div className="mt-4">
+                              <label className="text-xs text-muted-foreground">
+                                Describe your business <span className="ml-1 text-destructive">*</span>
+                              </label>
+                              <textarea
+                                value={String(form.surveyExtras?.business_description || "")}
+                                onChange={(e) => setExtra("business_description", e.target.value)}
+                                className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
+                                placeholder="Tell us what your business does, what you sell, your customers, and services..."
+                                rows={4}
+                              />
+                              <p className="mt-2 text-xs text-muted-foreground">
+                                This helps PostingExpert generate accurate content for your business.
+                              </p>
+                            </div>
+                          ) : null}
                         </div>
 
                         <div>
@@ -1129,7 +1154,7 @@ export default function RegisterPage() {
                           <p className="mt-2 text-xs text-muted-foreground">Selected: {goalsCount}/3</p>
                         </div>
 
-                        {/* ✅ NEW: Industry-specific “important questions” */}
+                        {/* ✅ Industry-specific “important questions” */}
                         <div className="rounded-2xl border border-border bg-background p-4">
                           <p className="text-sm font-medium text-foreground">Business details (for better content)</p>
                           <p className="mt-1 text-xs text-muted-foreground">
@@ -1229,7 +1254,9 @@ export default function RegisterPage() {
                               onClick={() => setForm((p) => ({ ...p, aiImages: !p.aiImages }))}
                               className={[
                                 "rounded-full px-4 py-2 text-sm font-medium transition",
-                                form.aiImages ? "bg-primary text-primary-foreground hover:opacity-90" : "border border-border bg-card text-foreground hover:bg-muted",
+                                form.aiImages
+                                  ? "bg-primary text-primary-foreground hover:opacity-90"
+                                  : "border border-border bg-card text-foreground hover:bg-muted",
                               ].join(" ")}
                             >
                               {form.aiImages ? "Enabled" : "Disabled"}
@@ -1408,6 +1435,16 @@ export default function RegisterPage() {
                               <span className="text-muted-foreground">Tone</span>
                               <span className="font-medium">{form.tone}</span>
                             </div>
+
+                            {/* ✅ show business description in review if Other */}
+                            {form.industry === "Other" ? (
+                              <div className="flex justify-between gap-3">
+                                <span className="text-muted-foreground">Business</span>
+                                <span className="font-medium text-right">
+                                  {String(form.surveyExtras?.business_description || "-")}
+                                </span>
+                              </div>
+                            ) : null}
                           </div>
                         </div>
 
@@ -1453,7 +1490,9 @@ export default function RegisterPage() {
                           disabled={loading}
                           className={[
                             "w-full rounded-full px-6 py-3 text-sm font-medium shadow-sm transition",
-                            loading ? "bg-muted text-muted-foreground cursor-not-allowed" : "bg-primary text-primary-foreground hover:opacity-90",
+                            loading
+                              ? "bg-muted text-muted-foreground cursor-not-allowed"
+                              : "bg-primary text-primary-foreground hover:opacity-90",
                           ].join(" ")}
                         >
                           {loading ? "Creating..." : "Create account"}
@@ -1492,7 +1531,9 @@ export default function RegisterPage() {
                     disabled={!stepValid}
                     className={[
                       "rounded-full px-5 py-2 text-sm font-medium shadow-sm transition",
-                      stepValid ? "bg-primary text-primary-foreground hover:opacity-90" : "bg-muted text-muted-foreground cursor-not-allowed",
+                      stepValid
+                        ? "bg-primary text-primary-foreground hover:opacity-90"
+                        : "bg-muted text-muted-foreground cursor-not-allowed",
                     ].join(" ")}
                   >
                     Next →
@@ -1504,7 +1545,9 @@ export default function RegisterPage() {
                     disabled={loading}
                     className={[
                       "rounded-full px-5 py-2 text-sm font-medium shadow-sm transition",
-                      loading ? "bg-muted text-muted-foreground cursor-not-allowed" : "bg-primary text-primary-foreground hover:opacity-90",
+                      loading
+                        ? "bg-muted text-muted-foreground cursor-not-allowed"
+                        : "bg-primary text-primary-foreground hover:opacity-90",
                     ].join(" ")}
                   >
                     {loading ? "Creating..." : "Create"}
