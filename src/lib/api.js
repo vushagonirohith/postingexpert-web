@@ -105,7 +105,13 @@ export async function apiFetch(path, options = {}) {
   const BASE = resolveBaseUrl(chosen);
 
   const headers = { "Content-Type": "application/json", ...extraHeaders };
-  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const storedToken =
+    token ||
+    (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+
+  if (storedToken) headers.Authorization = `Bearer ${storedToken}`;
+
 
   const url = `${BASE}${finalPath}`;
   console.log(`🔵 API Request: ${method} ${url} (base=${chosen})`);
@@ -141,7 +147,13 @@ export async function apiUpload(path, options = {}) {
   const BASE = resolveBaseUrl(chosen);
 
   const headers = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const storedToken =
+    token ||
+    (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+
+  if (storedToken) headers.Authorization = `Bearer ${storedToken}`;
+
 
   const url = `${BASE}${finalPath}`;
   console.log(`🔵 Upload Request: ${method} ${url} (base=${chosen})`);

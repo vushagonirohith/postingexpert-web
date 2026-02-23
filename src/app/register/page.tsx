@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
 import { saveAuth } from "@/lib/auth";
-import HubSpotCRMService from "@/lib/hubspotCRM";
+// import HubSpotCRMService from "@/lib/hubspotCRM";
 
 // ✅ use your shared api helper (env-based, starts EC2 via gateway)
 import { apiFetch, API_BASE } from "@/lib/api";
@@ -763,17 +763,17 @@ export default function RegisterPage() {
         });
       }
 
-      // 1.1) HUBSPOT (non-blocking)
-      try {
-        await HubSpotCRMService.createContact(
-          form.email.toLowerCase().trim(),
-          form.username.trim(),
-          form.username.trim()
-        );
-        console.log("✅ User registered in HubSpot CRM");
-      } catch (crmError) {
-        console.warn("⚠️ HubSpot CRM error (non-fatal):", crmError);
-      }
+      // // 1.1) HUBSPOT (non-blocking)
+      // try {
+      //   await HubSpotCRMService.createContact(
+      //     form.email.toLowerCase().trim(),
+      //     form.username.trim(),
+      //     form.username.trim()
+      //   );
+      //   console.log("✅ User registered in HubSpot CRM");
+      // } catch (crmError) {
+      //   console.warn("⚠️ HubSpot CRM error (non-fatal):", crmError);
+      // }
 
       // 2) SAVE SURVEY / ONBOARDING DATA using SAME endpoint (/user/register)
       const colors = form.colors.slice(0, form.numColors);

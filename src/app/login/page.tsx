@@ -8,7 +8,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { saveAuth } from "@/lib/auth";
 import { apiFetch, API_BASE } from "@/lib/api";
 // 🆕 HUBSPOT CRM IMPORT
-import HubSpotCRMService from "@/lib/hubspotCRM";
+// import HubSpotCRMService from "@/lib/hubspotCRM";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -125,21 +125,21 @@ export default function LoginPage() {
       }
 
       // 🆕 RECORD USER IN HUBSPOT CRM (non-blocking)
-      try {
-        // Use the real email; if missing, skip CRM instead of fake @example.com
-        if (userEmail) {
-          await HubSpotCRMService.createContact(
-            userEmail,
-            username,
-            userId || username
-          );
-          console.log("✅ User recorded in HubSpot CRM");
-        } else {
-          console.warn("⚠️ No email available; skipped HubSpot contact create.");
-        }
-      } catch (crmError) {
-        console.warn("⚠️ HubSpot CRM error (non-fatal):", crmError);
-      }
+      // try {
+      //   // Use the real email; if missing, skip CRM instead of fake @example.com
+      //   if (userEmail) {
+      //     await HubSpotCRMService.createContact(
+      //       userEmail,
+      //       username,
+      //       userId || username
+      //     );
+      //     console.log("✅ User recorded in HubSpot CRM");
+      //   } else {
+      //     console.warn("⚠️ No email available; skipped HubSpot contact create.");
+      //   }
+      // } catch (crmError) {
+      //   console.warn("⚠️ HubSpot CRM error (non-fatal):", crmError);
+      // }
 
       setLoadingMessage("Success! Redirecting...");
       setTimeout(() => router.push("/connect"), 500);
