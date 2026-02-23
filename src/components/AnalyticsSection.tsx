@@ -1,7 +1,7 @@
 // src/components/AnalyticsSection.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   PieChart,
   Pie,
@@ -10,7 +10,8 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import HubSpotCRMService, { Analytics } from "@/lib/hubspotCRM";
+
+import { apiFetch } from "@/lib/api";
 
 const COLORS = [
   "hsl(var(--primary))",
@@ -20,28 +21,53 @@ const COLORS = [
   "#8b5cf6",
 ];
 
+type PlatformStat = { platform: string; count: number };
+
+type RecentPost = {
+  caption?: string;
+  created_at: string;
+  platform: string;
+  post_url?: string | null;
+};
+
+type Analytics = {
+  total_posts: number;
+  posts_by_platform: PlatformStat[];
+  recent_posts: RecentPost[];
+  engagement_summary?: {
+    total_impressions: number;
+    total_likes: number;
+    total_comments: number;
+    total_shares: number;
+  };
+};
+
 function isEmail(s: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s || "").trim());
 }
 
 function getIdentity() {
-  // ✅ priority: explicit stored email
   const userEmail = (localStorage.getItem("userEmail") || "").trim();
-
-  // username might be "Poorna" (not email)
   const username = (localStorage.getItem("username") || "").trim();
-
-  // sometimes you stored "registeredUserId"
   const registeredUserId = (localStorage.getItem("registeredUserId") || "").trim();
 
-  // If username itself is an email, treat it as email
   const email = userEmail || (isEmail(username) ? username : "");
-
-  // userId fallback
   const userId = registeredUserId || (email ? "" : username);
 
-  return { email, userId };
+  return { email, userId, username };
 }
+
+const EMPTY_ANALYTICS: Analytics = {
+  total_posts: 0,
+  posts_by_platform: [],
+  recent_posts: [],
+  engagement_summary: {
+    total_impressions: 0,
+    total_likes: 0,
+    total_comments: 0,
+    total_shares: 0,
+  },
+};
 
 export default function AnalyticsSection() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
@@ -56,34 +82,55 @@ export default function AnalyticsSection() {
       setError("");
       setRefreshMessage("");
 
-      const { email, userId } = getIdentity();
+      const { email, userId, username } = getIdentity();
 
       // If we still don't have anything, show clear error
-      if (!email && !userId) {
+      if (!email && !userId && !username) {
         setError("User identity missing. Please login again.");
         setAnalytics(null);
         return;
       }
 
-      const data = await HubSpotCRMService.getAnalytics({ email, userId });
-      setAnalytics(data);
+      /**
+       * ✅ Replace this endpoint with whatever your backend exposes.
+       * Recommended: create a backend route like:
+       *   GET /analytics?username=<username>
+       * or
+       *   POST /analytics { username }
+       *
+       * For now we try:
+       *   GET /analytics?username=...
+       */
+      const q = encodeURIComponent(username || userId || email);
+      const data: any = await apiFetch(`/analytics?username=${q}`, { method: "GET" });
+
+      // If backend returns nothing, fall back to empty analytics (no crash)
+      const normalized: Analytics = {
+        total_posts: Number(data?.total_posts ?? 0),
+        posts_by_platform: Array.isArray(data?.posts_by_platform) ? data.posts_by_platform : [],
+        recent_posts: Array.isArray(data?.recent_posts) ? data.recent_posts : [],
+        engagement_summary: data?.engagement_summary || EMPTY_ANALYTICS.engagement_summary,
+      };
+
+      setAnalytics(normalized);
     } catch (err: any) {
       console.error("Analytics fetch error:", err);
       const m = String(err?.message || "");
 
-      // Better UX message for timeouts
       if (m.toLowerCase().includes("timeout")) {
         setError("Analytics is taking too long (server warming up). Please click Refresh once more.");
+      } else if (m.includes("404")) {
+        // Nice message if you haven't created the endpoint yet
+        setError("Analytics endpoint not found. Add backend route: GET /analytics to enable this section.");
       } else {
         setError(m || "Failed to load analytics");
       }
-      setAnalytics(null);
+      setAnalytics(EMPTY_ANALYTICS);
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ “Fake refresh” = just refetch analytics (no /refresh_engagement)
   const onRefresh = async () => {
     try {
       setRefreshing(true);
@@ -108,22 +155,15 @@ export default function AnalyticsSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const engagementSummary = analytics?.engagement_summary ?? {
-    total_impressions: 0,
-    total_likes: 0,
-    total_comments: 0,
-    total_shares: 0,
-  };
+  const engagementSummary = analytics?.engagement_summary ?? EMPTY_ANALYTICS.engagement_summary;
 
   const totalEngagement =
-    engagementSummary.total_likes +
-    engagementSummary.total_comments +
-    engagementSummary.total_shares;
+    (engagementSummary?.total_likes ?? 0) +
+    (engagementSummary?.total_comments ?? 0) +
+    (engagementSummary?.total_shares ?? 0);
 
   const avgEngagement =
-    analytics && analytics.total_posts > 0
-      ? Math.round(totalEngagement / analytics.total_posts)
-      : 0;
+    analytics && analytics.total_posts > 0 ? Math.round(totalEngagement / analytics.total_posts) : 0;
 
   const platforms = analytics?.posts_by_platform ?? [];
 
@@ -165,7 +205,7 @@ export default function AnalyticsSection() {
     );
   }
 
-  if (error) {
+  if (error && !analytics) {
     return (
       <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
         <div className="flex items-center justify-between gap-3">
@@ -192,6 +232,7 @@ export default function AnalyticsSection() {
     );
   }
 
+  // if error but we have EMPTY_ANALYTICS, show the UI with empty states + error banner
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -229,6 +270,12 @@ export default function AnalyticsSection() {
         </div>
       ) : null}
 
+      {error ? (
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      ) : null}
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard title="Total Posts" value={(analytics?.total_posts ?? 0).toLocaleString()} subtitle="All time" />
@@ -236,7 +283,8 @@ export default function AnalyticsSection() {
         <KpiCard title="Avg. Engagement" value={avgEngagement.toLocaleString()} subtitle="Per post" />
         <KpiCard
           title="Active Platforms"
-          value={(platforms?.length ?? 0).toString()}
+          value={(platforms?.length ?? 0).toString()
+          }
           subtitle={platforms.map((p) => p.platform).join(", ") || "—"}
         />
       </div>
