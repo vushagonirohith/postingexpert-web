@@ -24,7 +24,9 @@ const FACEBOOK_CLIENT_ID =
 
 // ✅ Your Lambda callback endpoint
 const FACEBOOK_REDIRECT_URI =
-  "https://vpgqg4a4tk.execute-api.ap-south-1.amazonaws.com/prod/social/facebook/callback".trim();
+  "https://vpgqg4a4tk.execute-api.ap-south-1.amazonaws.com/prod/social/facebook/callback"
+    .replace(/\s+/g, "")
+    .trim();
 
 export default function FacebookConnectPage({
   appUser,
@@ -109,8 +111,7 @@ export default function FacebookConnectPage({
       `&state=${encodeURIComponent(appUser)}` +
       `&response_type=code` +
       `&scope=${encodeURIComponent(scopes)}` +
-      `&display=popup` +
-      `&auth_type=rerequest`;
+      `&display=popup`;
 
       console.log("FB URL:", url);
       window.prompt("COPY THIS URL", url); // shows the full URL so you can copy
