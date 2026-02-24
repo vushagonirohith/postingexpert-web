@@ -40,13 +40,12 @@ function getAppUser(profile?: ProfileLite | null) {
 
 // Instagram (FB dialog/oauth)
 function buildInstagramAuthUrl(appUser: string) {
-  const clientId = process.env.NEXT_PUBLIC_INSTAGRAM_CLIENT_ID || "";
-  const redirectUri = process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI || "";
-  if (!clientId || !redirectUri) return null;
+  const clientId = process.env.NEXT_PUBLIC_INSTAGRAM_CLIENT_ID || "1095157869184608";
+  const redirectUri = "https://vpgqg4a4tk.execute-api.ap-south-1.amazonaws.com/prod/social/instagram/callback";
 
   const scopes = [
     "pages_show_list",
-    "pages_read_engagement",
+    "pages_read_engagement", 
     "instagram_basic",
     "instagram_content_publish",
     "business_management",
@@ -58,22 +57,22 @@ function buildInstagramAuthUrl(appUser: string) {
     `&redirect_uri=${encodeURIComponent(redirectUri)}` +
     `&state=${encodeURIComponent(appUser)}` +
     `&response_type=code` +
-    `&scope=${encodeURIComponent(scopes.join(","))}`
+    `&scope=${encodeURIComponent(scopes.join(","))}` +
+    `&display=popup`
   );
 }
 
-// Facebook dialog/oauth
+// Replace buildFacebookAuthUrl function entirely:
 function buildFacebookAuthUrl(appUser: string) {
-  const clientId = process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID || "";
-  const redirectUri = process.env.NEXT_PUBLIC_FACEBOOK_REDIRECT_URI || "";
-  if (!clientId || !redirectUri) return null;
+  const clientId = process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID || "1095157869184608";
+  const redirectUri = "https://vpgqg4a4tk.execute-api.ap-south-1.amazonaws.com/prod/social/facebook/callback";
 
   const scopes = [
+    "public_profile",
     "pages_show_list",
     "pages_read_engagement",
     "pages_manage_posts",
     "pages_manage_engagement",
-    "public_profile",
   ];
 
   return (
@@ -82,7 +81,9 @@ function buildFacebookAuthUrl(appUser: string) {
     `&redirect_uri=${encodeURIComponent(redirectUri)}` +
     `&state=${encodeURIComponent(appUser)}` +
     `&response_type=code` +
-    `&scope=${encodeURIComponent(scopes.join(","))}`
+    `&scope=${encodeURIComponent(scopes.join(","))}` +
+    `&display=popup` +
+    `&auth_type=rerequest`
   );
 }
 
@@ -237,18 +238,18 @@ export default function ConnectClient({ profile }: { profile: ProfileLite | null
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appUser]);
 
+  // Replace onInstagramConnect:
   const onInstagramConnect = () => {
     if (!appUser) return setToast("app_user missing. Login again.");
     const url = buildInstagramAuthUrl(appUser);
-    if (!url) return setToast("Missing IG env vars (CLIENT_ID or REDIRECT_URI).");
     const pop = openCenteredPopup(url, "instagram_oauth");
     if (!pop) setToast("Popup blocked. Allow popups and try again.");
   };
 
+  // Replace onFacebookConnect:
   const onFacebookConnect = () => {
     if (!appUser) return setToast("app_user missing. Login again.");
     const url = buildFacebookAuthUrl(appUser);
-    if (!url) return setToast("Missing FB env vars (CLIENT_ID or REDIRECT_URI).");
     const pop = openCenteredPopup(url, "facebook_oauth");
     if (!pop) setToast("Popup blocked. Allow popups and try again.");
   };
