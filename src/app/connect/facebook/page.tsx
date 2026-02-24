@@ -100,10 +100,10 @@ export default function FacebookConnectPage({
       "pages_show_list",
       "pages_read_engagement",
       "pages_manage_posts",
-      "instagram_basic",
+      "instagram_basic", 
       "instagram_content_publish",
     ].join(",");
-
+//done
     const url =
       "https://www.facebook.com/v21.0/dialog/oauth" +
       `?client_id=${encodeURIComponent(FACEBOOK_CLIENT_ID)}` +
