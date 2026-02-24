@@ -20,12 +20,11 @@ type Props = {
 };
 
 const FACEBOOK_CLIENT_ID =
-  (process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID || "1095157869184608").trim();
+  process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID || "1095157869184608";
 
-// ✅ IMPORTANT: trim() prevents accidental newline (%0A) in redirect_uri
-const FACEBOOK_REDIRECT_URI = (
-  "https://vpgqg4a4tk.execute-api.ap-south-1.amazonaws.com/prod/social/facebook/callback"
-).trim();
+// ✅ Your Lambda callback endpoint
+const FACEBOOK_REDIRECT_URI =
+  "https://vpgqg4a4tk.execute-api.ap-south-1.amazonaws.com/prod/social/facebook/callback".trim();
 
 export default function FacebookConnectPage({
   appUser,
@@ -96,34 +95,25 @@ export default function FacebookConnectPage({
     setLastError(null);
     setUiConnected(false);
 
-    // ✅ FB Pages + IG publish (NO pages_read_user_content)
     const scopes = [
       "public_profile",
       "pages_show_list",
       "pages_read_engagement",
       "pages_manage_posts",
-      "pages_manage_metadata",
-      "pages_manage_engagement",
-      "instagram_basic",
-      "instagram_content_publish",
     ].join(",");
-
-    // ✅ Use www.facebook.com/dialog/oauth (more common) — keep version if you want
+//done
     const url =
-      "https://www.facebook.com/dialog/oauth" +
+      "https://www.facebook.com/v21.0/dialog/oauth" +
       `?client_id=${encodeURIComponent(FACEBOOK_CLIENT_ID)}` +
       `&redirect_uri=${encodeURIComponent(FACEBOOK_REDIRECT_URI)}` +
-      `&state=${encodeURIComponent(String(appUser).trim())}` +
+      `&state=${encodeURIComponent(appUser)}` +
       `&response_type=code` +
       `&scope=${encodeURIComponent(scopes)}` +
       `&display=popup` +
       `&auth_type=rerequest`;
 
-    // ✅ Debug: confirm NO %0A and NO pages_read_user_content
-    console.log("FB OAUTH URL =>", url);
-    // optional one-time debug:
-    // alert(url);
-
+      console.log("FB URL:", url);
+      window.prompt("COPY THIS URL", url); // shows the full URL so you can copy
     const popup = window.open(
       url,
       "facebook-auth",
