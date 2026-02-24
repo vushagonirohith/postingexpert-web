@@ -96,10 +96,12 @@ export default function FacebookConnectPage({
     setUiConnected(false);
 
     const scopes = [
+      "public_profile",
       "pages_show_list",
       "pages_read_engagement",
       "pages_manage_posts",
-      "public_profile",
+      "instagram_basic",
+      "instagram_content_publish",
     ].join(",");
 
     const url =
@@ -108,7 +110,9 @@ export default function FacebookConnectPage({
       `&redirect_uri=${encodeURIComponent(FACEBOOK_REDIRECT_URI)}` +
       `&state=${encodeURIComponent(appUser)}` +
       `&response_type=code` +
-      `&scope=${encodeURIComponent(scopes)}`;
+      `&scope=${encodeURIComponent(scopes)}` +
+      `&display=popup` +
+      `&auth_type=rerequest`;
 
     const popup = window.open(
       url,

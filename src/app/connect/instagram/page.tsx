@@ -19,8 +19,8 @@ type Props = {
   connectionDetails?: any;
 };
 
-const INSTAGRAM_CLIENT_ID =
-  process.env.NEXT_PUBLIC_INSTAGRAM_CLIENT_ID || "23985206087742789";
+const FACEBOOK_CLIENT_ID =
+  process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID || "1095157869184608";
 
 // ✅ Your Lambda callback endpoint
 const INSTAGRAM_REDIRECT_URI =
@@ -96,20 +96,21 @@ export default function InstagramConnectPage({
     setUiConnected(false);
 
     const scopes = [
+      "public_profile",
       "pages_show_list",
-      "pages_read_engagement",
       "instagram_basic",
       "instagram_content_publish",
-      "business_management",
     ].join(",");
 
     const url =
       "https://www.facebook.com/v21.0/dialog/oauth" +
-      `?client_id=${encodeURIComponent(INSTAGRAM_CLIENT_ID)}` +
+      `?client_id=${encodeURIComponent(FACEBOOK_CLIENT_ID)}` +
       `&redirect_uri=${encodeURIComponent(INSTAGRAM_REDIRECT_URI)}` +
       `&state=${encodeURIComponent(appUser)}` +
       `&response_type=code` +
-      `&scope=${encodeURIComponent(scopes)}`;
+      `&scope=${encodeURIComponent(scopes)}` +
+      `&display=popup` +
+      `&auth_type=rerequest`;
 
     const popup = window.open(
       url,
