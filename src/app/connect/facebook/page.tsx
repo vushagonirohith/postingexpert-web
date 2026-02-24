@@ -114,6 +114,8 @@ export default function FacebookConnectPage({
       `&display=popup` +
       `&auth_type=rerequest`;
 
+      console.log("FB URL:", url);
+      window.prompt("COPY THIS URL", url); // shows the full URL so you can copy
     const popup = window.open(
       url,
       "facebook-auth",
