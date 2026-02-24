@@ -40,7 +40,7 @@ type Props = {
 };
 
 const API_BASE = (
-  process.env.NEXT_PUBLIC_API_BASE_URL || "https://vpgqg4a4tk.execute-api.ap-south-1.amazonaws.com/prod"
+  "https://aomkmgl9zj.execute-api.ap-south-1.amazonaws.com/prod"
 );
 
 const LINKEDIN_CLIENT_ID =

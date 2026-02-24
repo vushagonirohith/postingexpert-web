@@ -4,7 +4,7 @@
 export const GATEWAY_BASE = (
   process.env.NEXT_PUBLIC_GATEWAY_BASE_URL ||
   process.env.NEXT_PUBLIC_LAMBDA_URL ||
-  "https://vpgqg4a4tk.execute-api.ap-south-1.amazonaws.com/prod"
+  "https://aomkmgl9zj.execute-api.ap-south-1.amazonaws.com/prod"
 ).replace(/\/$/, "");
 
 // ✅ Enqueue Gateway (Start-EC2-on-demand Lambda) — ONLY for /queue/enqueue
