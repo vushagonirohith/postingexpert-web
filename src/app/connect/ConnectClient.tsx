@@ -72,7 +72,6 @@ function buildFacebookAuthUrl(appUser: string) {
     "pages_show_list",
     "pages_read_engagement",
     "pages_manage_posts",
-    "pages_manage_metadata",
     "pages_manage_engagement",
     "public_profile",
   ];
