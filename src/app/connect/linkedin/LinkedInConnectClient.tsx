@@ -40,7 +40,7 @@ type Props = {
 };
 
 const API_BASE = (
-  "https://aomkmgl9zj.execute-api.ap-south-1.amazonaws.com/prod"
+  process.env.NEXT_PUBLIC_API_BASE_URL || "https://vpgqg4a4tk.execute-api.ap-south-1.amazonaws.com/prod"
 );
 
 const LINKEDIN_CLIENT_ID =
@@ -56,7 +56,7 @@ const FRONTEND_ORIGIN =
 const ALLOWED_CALLBACK_ORIGINS = new Set<string>([
   FRONTEND_ORIGIN,
   "https://vpgqg4a4tk.execute-api.ap-south-1.amazonaws.com",
-  "https://aomkmgl9zj.execute-api.ap-south-1.amazonaws.com",
+  "https://vpgqg4a4tk.execute-api.ap-south-1.amazonaws.com",
 ]);
 
 export default function LinkedInConnectClient({
