@@ -22,7 +22,6 @@ export function AppSidebar() {
           Silent automation
         </p>
       </div>
-
       {/* Nav */}
       <nav className="mt-10 space-y-1">
         {NAV.map((item) => {
