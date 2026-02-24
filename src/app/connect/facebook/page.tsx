@@ -133,7 +133,7 @@ export default function FacebookConnect({
     const w = 600, h = 720;
     const left = window.screenX + (window.outerWidth - w) / 2;
     const top = window.screenY + (window.outerHeight - h) / 2;
-
+    console.log("FB OAUTH URL:", url);
     const popup = window.open(
       url,
       "facebook-auth",
