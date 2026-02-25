@@ -210,7 +210,7 @@ export function Hero() {
               >
                 <div className="flex items-center gap-2">
                   <div className="flex -space-x-2">
-                    {["IG", "LI", "X", "FB"].map((platform, i) => (
+                    {["IG", "LI", "FB"].map((platform, i) => (
                       <div
                         key={platform}
                         className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-background bg-primary text-[10px] font-medium text-primary-foreground"
@@ -220,7 +220,7 @@ export function Hero() {
                       </div>
                     ))}
                   </div>
-                  <span className="text-xs text-muted-foreground">4 platforms connected</span>
+                  <span className="text-xs text-muted-foreground">3 platforms connected</span>
                 </div>
               </motion.div>
             </motion.div>

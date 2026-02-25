@@ -469,6 +469,21 @@ function usernameLooksValid(u: string) {
   return /^[a-zA-Z0-9_]{3,}$/.test(u.trim());
 }
 
+/** Small inline check icon to make selected state obvious */
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M20 7L10 17l-5-5"
+        stroke="white"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export default function RegisterPage() {
   const router = useRouter();
 
@@ -649,8 +664,8 @@ export default function RegisterPage() {
           q.type === "checkbox"
             ? Array.isArray(v) && v.length > 0
             : typeof v === "string"
-            ? v.trim().length > 0
-            : v != null;
+              ? v.trim().length > 0
+              : v != null;
 
         if (!ok) return false;
       }
@@ -723,8 +738,8 @@ export default function RegisterPage() {
         q.type === "checkbox"
           ? Array.isArray(v) && v.length > 0
           : typeof v === "string"
-          ? v.trim().length > 0
-          : v != null;
+            ? v.trim().length > 0
+            : v != null;
       if (!ok) {
         setErrorMsg("Please complete the required business detail questions.");
         return;
@@ -762,18 +777,6 @@ export default function RegisterPage() {
           expires_in: reg?.expires_in || reg?.expiresIn || 3600,
         });
       }
-
-      // // 1.1) HUBSPOT (non-blocking)
-      // try {
-      //   await HubSpotCRMService.createContact(
-      //     form.email.toLowerCase().trim(),
-      //     form.username.trim(),
-      //     form.username.trim()
-      //   );
-      //   console.log("✅ User registered in HubSpot CRM");
-      // } catch (crmError) {
-      //   console.warn("⚠️ HubSpot CRM error (non-fatal):", crmError);
-      // }
 
       // 2) SAVE SURVEY / ONBOARDING DATA using SAME endpoint (/user/register)
       const colors = form.colors.slice(0, form.numColors);
@@ -840,6 +843,22 @@ export default function RegisterPage() {
     transition: "transform 380ms cubic-bezier(0.22, 1, 0.36, 1)",
   };
 
+  // ✅ reusable class helper for selectable buttons
+  const selectableClass = (active: boolean, extra?: string) =>
+    ["pe-selectable", "rounded-2xl", "border", extra || "", active ? "is-selected font-semibold" : ""]
+      .filter(Boolean)
+      .join(" ");
+
+  // ✅ small content layout for selectable buttons with check
+  const SelectableLabel = ({ active, label }: { active: boolean; label: string }) => (
+    <span className="flex items-center gap-3">
+      <span className="pe-check" aria-hidden="true">
+        <CheckIcon />
+      </span>
+      <span>{label}</span>
+    </span>
+  );
+
   return (
     <>
       <SiteNavbar />
@@ -883,8 +902,8 @@ export default function RegisterPage() {
                         type="button"
                         onClick={() => setStep(idx)}
                         className={[
-                          "flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm transition",
-                          active ? "border-primary/40 bg-primary/10" : "border-border bg-background hover:bg-muted",
+                          "pe-selectable flex items-center justify-between rounded-2xl px-4 py-3 text-left text-sm",
+                          active ? "is-selected" : "",
                         ].join(" ")}
                       >
                         <span className="flex items-center gap-2">
@@ -894,13 +913,13 @@ export default function RegisterPage() {
                               done
                                 ? "bg-primary text-primary-foreground"
                                 : active
-                                ? "bg-primary/20 text-foreground"
-                                : "bg-muted text-muted-foreground",
+                                  ? "bg-primary/30 text-foreground"
+                                  : "bg-muted text-muted-foreground",
                             ].join(" ")}
                           >
                             {done ? "✓" : idx + 1}
                           </span>
-                          {s.title}
+                          <span className={active ? "font-semibold" : ""}>{s.title}</span>
                         </span>
                         <span className="text-xs text-muted-foreground">{done ? "Done" : active ? "Current" : ""}</span>
                       </button>
@@ -1011,7 +1030,9 @@ export default function RegisterPage() {
                               Letters, numbers, underscores only. Min 3 characters.
                             </p>
                           ) : usernameLooksValid(form.username) ? null : (
-                            <p className="mt-2 text-xs text-destructive">Username must be 3+ chars and only letters/numbers/_.</p>
+                            <p className="mt-2 text-xs text-destructive">
+                              Username must be 3+ chars and only letters/numbers/_.
+                            </p>
                           )}
                         </div>
 
@@ -1110,13 +1131,11 @@ export default function RegisterPage() {
                                 <button
                                   key={t.value}
                                   type="button"
+                                  aria-pressed={active}
                                   onClick={() => setForm((p) => ({ ...p, tone: t.value }))}
-                                  className={[
-                                    "rounded-2xl border px-4 py-3 text-left text-sm transition",
-                                    active ? "border-primary/40 bg-primary/10" : "border-border bg-background hover:bg-muted",
-                                  ].join(" ")}
+                                  className={[selectableClass(active, "px-4 py-3 text-left text-sm")].join(" ")}
                                 >
-                                  {t.label}
+                                  <SelectableLabel active={active} label={t.label} />
                                 </button>
                               );
                             })}
@@ -1141,12 +1160,11 @@ export default function RegisterPage() {
                                   onClick={() => toggleGoal(g)}
                                   disabled={disabled}
                                   className={[
-                                    "rounded-2xl border px-4 py-3 text-left text-sm transition",
-                                    active ? "border-primary/40 bg-primary/10" : "border-border bg-background hover:bg-muted",
+                                    selectableClass(active, "px-4 py-3 text-left text-sm"),
                                     disabled ? "cursor-not-allowed opacity-50" : "",
                                   ].join(" ")}
                                 >
-                                  {g}
+                                  <SelectableLabel active={active} label={g} />
                                 </button>
                               );
                             })}
@@ -1199,13 +1217,11 @@ export default function RegisterPage() {
                                           <button
                                             key={opt}
                                             type="button"
+                                            aria-pressed={active}
                                             onClick={() => toggleExtraCheckbox(q.id, opt)}
-                                            className={[
-                                              "rounded-2xl border px-4 py-3 text-left text-sm transition",
-                                              active ? "border-primary/40 bg-primary/10" : "border-border bg-background hover:bg-muted",
-                                            ].join(" ")}
+                                            className={selectableClass(active, "px-4 py-3 text-left text-sm")}
                                           >
-                                            {opt}
+                                            <SelectableLabel active={active} label={opt} />
                                           </button>
                                         );
                                       })}
@@ -1220,13 +1236,16 @@ export default function RegisterPage() {
                                           <button
                                             key={opt}
                                             type="button"
+                                            aria-pressed={active}
                                             onClick={() => setExtra(q.id, opt)}
-                                            className={[
-                                              "rounded-2xl border px-3 py-3 text-center text-sm transition",
-                                              active ? "border-primary/40 bg-primary/10" : "border-border bg-background hover:bg-muted",
-                                            ].join(" ")}
+                                            className={selectableClass(active, "px-3 py-3 text-center text-sm")}
                                           >
-                                            {opt}
+                                            <span className="flex items-center justify-center gap-3">
+                                              <span className="pe-check" aria-hidden="true">
+                                                <CheckIcon />
+                                              </span>
+                                              <span>{opt}</span>
+                                            </span>
                                           </button>
                                         );
                                       })}
@@ -1273,13 +1292,16 @@ export default function RegisterPage() {
                                 <button
                                   key={f.value}
                                   type="button"
+                                  aria-pressed={active}
                                   onClick={() => setForm((p) => ({ ...p, frequency: f.value }))}
-                                  className={[
-                                    "rounded-2xl border px-3 py-3 text-center text-sm transition",
-                                    active ? "border-primary/40 bg-primary/10" : "border-border bg-background hover:bg-muted",
-                                  ].join(" ")}
+                                  className={selectableClass(active, "px-3 py-3 text-center text-sm")}
                                 >
-                                  {f.label}
+                                  <span className="flex items-center justify-center gap-3">
+                                    <span className="pe-check" aria-hidden="true">
+                                      <CheckIcon />
+                                    </span>
+                                    <span>{f.label}</span>
+                                  </span>
                                 </button>
                               );
                             })}
@@ -1343,7 +1365,10 @@ export default function RegisterPage() {
                               >
                                 <div className="flex items-center gap-3">
                                   <span className="text-sm font-medium text-foreground">Color {i + 1}</span>
-                                  <div className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: form.colors[i] }} />
+                                  <div
+                                    className="h-5 w-5 rounded-full border border-border"
+                                    style={{ backgroundColor: form.colors[i] }}
+                                  />
                                   <span className="text-xs text-muted-foreground">{form.colors[i]}</span>
                                 </div>
 
@@ -1361,7 +1386,9 @@ export default function RegisterPage() {
 
                         <div className="rounded-2xl border border-border bg-background p-4">
                           <p className="text-sm font-medium text-foreground">Business logo (optional)</p>
-                          <p className="mt-1 text-xs text-muted-foreground">PNG, JPG, SVG • max 5MB. Used on templates & branding.</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            PNG, JPG, SVG • max 5MB. Used on templates & branding.
+                          </p>
 
                           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <input

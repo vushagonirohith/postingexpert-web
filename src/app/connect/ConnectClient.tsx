@@ -82,8 +82,7 @@ function buildFacebookAuthUrl(appUser: string) {
     `&state=${encodeURIComponent(appUser)}` +
     `&response_type=code` +
     `&scope=${encodeURIComponent(scopes.join(","))}` +
-    `&display=popup` +
-    
+    `&display=popup` 
   );
 }
 
