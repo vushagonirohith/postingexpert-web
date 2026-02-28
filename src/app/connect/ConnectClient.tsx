@@ -72,7 +72,7 @@ function buildFacebookAuthUrl(appUser: string) {
     "pages_show_list",
     "pages_read_engagement",
     "pages_manage_posts",
-    "pages_manage_engagement",
+    // "pages_manage_engagement",
   ];
 
   return (
@@ -120,6 +120,10 @@ export default function ConnectClient({ profile }: { profile: ProfileLite | null
   const isInstagramConnected = social.instagram.connected || igUiConnected;
   const isFacebookConnected = social.facebook.connected || fbUiConnected;
 
+  // ✅ Facebook display helpers (keep here)
+  const fbDetail: any = social.facebook.detail || {};
+  const fbPageName = fbDetail.page_name || fbDetail.facebook_page_name;
+  const fbPageId = fbDetail.page_id || fbDetail.facebook_page_id;
   const connectedCount = useMemo(() => {
     const li = social.linkedin.connected;
     const ig = isInstagramConnected;
@@ -159,10 +163,24 @@ export default function ConnectClient({ profile }: { profile: ProfileLite | null
         facebook: {
           connected: Boolean(connectedMap.facebook),
           detail: (data as any)?.connected_details?.facebook || null,
+
         },
       };
 
-      setSocial(next);
+      setSocial((prev) => ({
+      instagram: {
+        ...next.instagram,
+        detail: next.instagram.detail ?? prev.instagram.detail,
+      },
+      linkedin: {
+        ...next.linkedin,
+        detail: next.linkedin.detail ?? prev.linkedin.detail,
+      },
+      facebook: {
+        ...next.facebook,
+        detail: next.facebook.detail ?? prev.facebook.detail,
+      },
+    }));
 
       if (next.instagram.connected) setIgUiConnected(false);
       if (next.facebook.connected) setFbUiConnected(false);
@@ -215,12 +233,24 @@ export default function ConnectClient({ profile }: { profile: ProfileLite | null
         if (msg.success) {
           setToast("Facebook connected successfully");
           setFbUiConnected(true);
-        } else {
-          setToast(`Facebook error: ${msg.error || "Connection failed"}`);
-          setFbUiConnected(false);
+        // ✅ Immediately store details so UI can show Page + Page ID
+            setSocial((prev) => ({
+              ...prev,
+              facebook: {
+                connected: true,
+                detail: {
+                  page_id: msg.page_id,
+                  page_name: msg.page_name,
+                },
+              },
+            }));
+          } else {
+            setToast(`Facebook error: ${msg.error || "Connection failed"}`);
+            setFbUiConnected(false);
+          }
+
+          fetchSocialStatus();
         }
-        fetchSocialStatus();
-      }
 
       if (msg.type === "linkedin_callback") {
         setToast(
@@ -252,7 +282,6 @@ export default function ConnectClient({ profile }: { profile: ProfileLite | null
     const pop = openCenteredPopup(url, "facebook_oauth");
     if (!pop) setToast("Popup blocked. Allow popups and try again.");
   };
-
   return (
     <div className="mt-10 rounded-3xl border border-border bg-card p-8 shadow-sm">
       {toast && (
@@ -431,9 +460,10 @@ export default function ConnectClient({ profile }: { profile: ProfileLite | null
             {isFacebookConnected ? "Reconnect" : "Connect"}
           </button>
 
-          {!!(social.facebook.detail as any)?.page_name && (
-            <div className="mt-2 text-xs text-muted-foreground">
-              Page: {(social.facebook.detail as any).page_name}
+          {(fbPageName || fbPageId) && (
+            <div className="mt-2 text-xs text-muted-foreground space-y-1">
+              {fbPageName && <div>Page: {fbPageName}</div>}
+              {fbPageId && <div>Page ID: {fbPageId}</div>}
             </div>
           )}
         </div>
