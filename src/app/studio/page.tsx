@@ -412,9 +412,13 @@ const handlePostNow = async () => {
     const route = process.env.NEXT_PUBLIC_POST_API_ROUTE || "/post";
     const url = `${base}${route}`;
 
+    const selectedPlatforms = Object.entries(platforms)
+      .filter(([_, v]) => v)
+      .map(([k]) => k); // ["linkedin","facebook","instagram"]
+
     const { data } = await axios.post(
       url,
-      { job_id: jobId },
+      { job_id: jobId, platforms: selectedPlatforms },
       {
         headers: { "Content-Type": "application/json" },
         timeout: 120000,
@@ -1057,7 +1061,7 @@ const handlePostNow = async () => {
                 </div>
 
                 {/* ✅ POST BUTTON */}
-                {jobStatus === "completed" && jobId && platforms.linkedin &&  (
+                {jobStatus === "completed" && jobId && Object.values(platforms).some(Boolean) && (
                   <div className="mt-5">
                     <button
                       type="button"
@@ -1069,7 +1073,7 @@ const handlePostNow = async () => {
                         ? "Posting..."
                         : postStatus === "POSTED"
                         ? "Posted ✅"
-                        : "Post to LinkedIn"}
+                        : "Post"}
                     </button>
 
                     {postMessage && (
