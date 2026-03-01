@@ -1,7 +1,7 @@
 // src/app/settings/page.tsx
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -719,7 +719,7 @@ function SubscriptionCard({
 /* Settings Page                                                   */
 /* ─────────────────────────────────────────────────────────────── */
 
-export default function SettingsPage() {
+function SettingsInner() {
   const searchParams   = useSearchParams();
   const paymentSuccess = searchParams.get("payment") === "success";
 
@@ -759,5 +759,13 @@ export default function SettingsPage() {
         <DeleteDataCard />
       </div>
     </main>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={null}>
+      <SettingsInner />
+    </Suspense>
   );
 }
