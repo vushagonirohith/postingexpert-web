@@ -5,8 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getToken, clearAuth } from "@/lib/auth";
 
-const BILLING_API =
-  (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_BILLING_API_URL) || "";
+const BILLING_API = process.env.NEXT_PUBLIC_BILLING_API_URL || "";
 
 const CACHE_KEY    = "pe_sub_status";
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -33,18 +32,11 @@ function writeCache(active: boolean, status: string) {
 }
 
 type Result = {
-  ready:          boolean;  // true = logged in (page should render)
-  subscribed:     boolean;  // true = active subscription
-  checking:       boolean;  // true = still loading
+  ready:      boolean; // logged in — page bg renders
+  subscribed: boolean; // has active subscription
+  checking:   boolean; // still fetching — show nothing yet
 };
 
-/**
- * Use this in every gated page:
- *
- *   const { ready, subscribed, checking } = useRequireSubscription("studio");
- *   if (!ready || checking) return null;
- *   // Render page content + show PaywallOverlay if !subscribed
- */
 export function useRequireSubscription(from = ""): Result {
   const router = useRouter();
   const [ready,      setReady]      = useState(false);
@@ -63,7 +55,7 @@ export function useRequireSubscription(from = ""): Result {
         return;
       }
 
-      setReady(true); // logged in — page background can render
+      setReady(true);
 
       // 2. Get userId from JWT
       let userId = "";
@@ -72,35 +64,35 @@ export function useRequireSubscription(from = ""): Result {
         userId = payload.username || payload.sub || payload.user_id || "";
       } catch {}
 
+      // No userId → treat as no subscription (show paywall)
       if (!userId) {
-        // Can't check without userId — don't block
-        if (!cancelled) { setSubscribed(true); setChecking(false); }
+        if (!cancelled) { setSubscribed(false); setChecking(false); }
         return;
       }
 
-      // 3. Check sessionStorage cache
+      // 3. Check sessionStorage cache first
       const cached = readCache();
       if (cached) {
         if (!cancelled) { setSubscribed(cached.active); setChecking(false); }
         return;
       }
 
-      // 4. No cache — hit billing API
-      try {
-        if (!BILLING_API) {
-          // Billing API not configured — dev mode, don't block
-          if (!cancelled) { setSubscribed(true); setChecking(false); }
-          return;
-        }
+      // 4. Hit billing API — BLOCK if not configured
+      if (!BILLING_API) {
+        // No billing API URL → show paywall (don't let through)
+        if (!cancelled) { setSubscribed(false); setChecking(false); }
+        return;
+      }
 
+      try {
         const res = await fetch(
           `${BILLING_API}/billing/status?userId=${encodeURIComponent(userId)}`,
           { headers: { "Content-Type": "application/json" } }
         );
 
+        // API error → show paywall (safe default)
         if (!res.ok) {
-          // API error — don't block user
-          if (!cancelled) { setSubscribed(true); setChecking(false); }
+          if (!cancelled) { setSubscribed(false); setChecking(false); }
           return;
         }
 
@@ -110,8 +102,8 @@ export function useRequireSubscription(from = ""): Result {
 
         if (!cancelled) { setSubscribed(isActive); setChecking(false); }
       } catch {
-        // Network error — don't block
-        if (!cancelled) { setSubscribed(true); setChecking(false); }
+        // Network error → show paywall (safe default)
+        if (!cancelled) { setSubscribed(false); setChecking(false); }
       }
     }
 
