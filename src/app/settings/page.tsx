@@ -17,7 +17,7 @@ const BILLING_API = process.env.NEXT_PUBLIC_BILLING_API_URL || "";
 
 const PROFILE_GET_PATH    = "/user/profile";
 const PROFILE_UPDATE_PATH = "/user/profile";
-const SUBSCRIPTION_STATUS_PATH = "/billing/subscription";
+const SUBSCRIPTION_STATUS_PATH = "/billing/status";
 
 type ProfileData = {
   name?:               string;
@@ -557,12 +557,16 @@ function SubscriptionCard({
   const [sub,     setSub]     = useState<SubscriptionData>({});
   const [msg,     setMsg]     = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
-  // Show payment success banner when redirected from pricing page
+  // Show payment success banner + refetch so new status shows immediately
   useEffect(() => {
     if (paymentSuccess) {
       setMsg({ type: "ok", text: "🎉 Payment successful! Your subscription is now active." });
       window.history.replaceState({}, "", "/settings");
+      // clear cache and refetch so updated status shows right away
+      try { sessionStorage.removeItem("pe_sub_status"); } catch {}
+      fetchSubscription();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentSuccess]);
 
   const badge = useMemo(() => {
@@ -590,7 +594,13 @@ function SubscriptionCard({
     try {
       // Use billing API if configured, fallback to main gateway
       const subBase = BILLING_API || API_BASE;
-      const res  = await fetch(`${subBase}${SUBSCRIPTION_STATUS_PATH}`, {
+      // get userId from localStorage (same as how other pages do it)
+      const userId =
+        (typeof window !== "undefined" && localStorage.getItem("username")) || "";
+      const url = userId
+        ? `${subBase}${SUBSCRIPTION_STATUS_PATH}?userId=${encodeURIComponent(userId)}`
+        : `${subBase}${SUBSCRIPTION_STATUS_PATH}`;
+      const res  = await fetch(url, {
         method:  "GET",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -603,8 +613,20 @@ function SubscriptionCard({
         setMsg({ type: "err", text: json?.error || "Failed to fetch subscription" });
         return;
       }
-      const subscription = (json?.subscription ?? json?.data ?? json) as SubscriptionData;
-      setSub(subscription || {});
+      // billing/status returns flat object — map to SubscriptionData shape
+      const raw = json?.subscription ?? json?.data ?? json;
+      const subscription: SubscriptionData = {
+        status:             raw?.status,
+        plan_name:          raw?.plan_label || raw?.plan_name || raw?.plan_key,
+        plan_key:           raw?.plan_key,
+        started_at:         raw?.period_start ?? raw?.started_at,
+        current_period_end: raw?.period_end   ?? raw?.current_period_end,
+        trial_ends_at:      raw?.trial_ends_at,
+        is_trial:           raw?.status === "trial",
+        amount_inr:         raw?.amount_inr,
+        promo_code:         raw?.promo_code,
+      };
+      setSub(subscription);
     } catch (e: any) {
       setMsg({ type: "err", text: e?.message || "Failed to fetch subscription" });
     } finally {
