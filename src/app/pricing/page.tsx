@@ -407,7 +407,7 @@ export default function PricingPage() {
                       value={code}
                       onChange={(e) => setCode(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && !promo && validatePromo()}
-                      placeholder="Enter code (e.g. SAVE10, DEVTRIAL2)"
+                      placeholder="Enter code "
                       disabled={!!promo}
                       className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/25 disabled:opacity-60"
                     />
