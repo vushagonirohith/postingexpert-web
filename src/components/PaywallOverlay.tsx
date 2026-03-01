@@ -20,7 +20,7 @@ const PLANS = [
 const FROM_LABELS: Record<string, string> = {
   studio: "AI Content Studio",
   connect: "Connect & Automate",
-  analytics: "LinkedIn Analytics",
+  analytics: "Social Analytics",
   gallery: "Content Gallery",
 };
 
