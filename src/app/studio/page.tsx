@@ -7,7 +7,8 @@ import { useRouter } from "next/navigation";
 
 import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
-import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useRequireSubscription } from "@/hooks/useRequireSubscription";
+import { PaywallOverlay } from "@/components/PaywallOverlay";
 import { clearAuth } from "@/lib/auth";
 
 // ==========================
@@ -87,7 +88,7 @@ type JobResult = {
 
 export default function StudioPage() {
   const router = useRouter();
-  const { ready } = useRequireAuth("/login");
+  const { ready, subscribed, checking } = useRequireSubscription("studio");
 
   const [prompt, setPrompt] = useState("");
   const [numImages, setNumImages] = useState("");
@@ -618,10 +619,11 @@ const handlePostNow = async () => {
     [platforms]
   );
 
-  if (!ready) return null;
+  if (!ready || checking) return null;
 
   return (
     <>
+      {!subscribed && <PaywallOverlay from="studio" />}
       <SiteNavbar />
 
       <main className="min-h-screen bg-background text-foreground">

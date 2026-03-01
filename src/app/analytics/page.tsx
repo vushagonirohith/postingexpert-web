@@ -4,6 +4,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
+import { useRequireSubscription } from "@/hooks/useRequireSubscription";
+import { PaywallOverlay } from "@/components/PaywallOverlay";
 
 /* ===================== TYPES ===================== */
 type AnalyticsSummary = {
@@ -484,6 +486,7 @@ function SkeletonPage() {
 
 /* ===================== PAGE ===================== */
 export default function AnalyticsPage() {
+  const { ready, subscribed, checking } = useRequireSubscription("analytics");
   const [loading, setLoading] = useState(true);
   const [stage, setStage] = useState<"idle" | "fetching" | "analytics">("idle");
   const [msg, setMsg] = useState<string>("");
@@ -663,8 +666,11 @@ export default function AnalyticsPage() {
     );
   }, [analytics]);
 
+  if (!ready || checking) return null;
+
   return (
     <>
+      {!subscribed && <PaywallOverlay from="analytics" />}
       <SiteNavbar />
 
       {toast && (

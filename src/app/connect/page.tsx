@@ -5,7 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
-import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useRequireSubscription } from "@/hooks/useRequireSubscription";
+import { PaywallOverlay } from "@/components/PaywallOverlay";
 import { apiFetch } from "@/lib/api";
 import { getToken, clearAuth } from "@/lib/auth";
 import ConnectClient from "./ConnectClient";
@@ -89,7 +90,7 @@ function isAuthErrorMessage(msg: string) {
 
 export default function ConnectPage() {
   const router = useRouter();
-  const { ready } = useRequireAuth("/login");
+  const { ready, subscribed, checking } = useRequireSubscription("connect");
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [social, setSocial] = useState<SocialStatus>({
@@ -183,10 +184,11 @@ export default function ConnectPage() {
     return [social.instagram, social.linkedin, social.facebook].filter(Boolean).length;
   }, [social]);
 
-  if (!ready) return null;
+  if (!ready || checking) return null;
 
   return (
     <>
+      {!subscribed && <PaywallOverlay from="connect" />}
       <SiteNavbar />
 
       <main className="min-h-screen bg-background text-foreground">

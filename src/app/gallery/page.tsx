@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 
 import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
-import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useRequireSubscription } from "@/hooks/useRequireSubscription";
+import { PaywallOverlay } from "@/components/PaywallOverlay";
 import { clearAuth, getToken } from "@/lib/auth";
 import { listMyAssets, type UserAsset } from "@/lib/assets";
 
@@ -36,7 +37,7 @@ function prettyDate(createdAt: string) {
 
 export default function GalleryPage() {
   const router = useRouter();
-  const { ready } = useRequireAuth("/login");
+  const { ready, subscribed, checking } = useRequireSubscription("gallery");
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string>("");
@@ -101,10 +102,11 @@ export default function GalleryPage() {
     });
   }, [items, q, typeFilter]);
 
-  if (!ready) return null;
+  if (!ready || checking) return null;
 
   return (
     <>
+      {!subscribed && <PaywallOverlay from="gallery" />}
       <SiteNavbar />
 
       <main className="min-h-screen bg-background text-foreground">

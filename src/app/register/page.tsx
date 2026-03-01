@@ -507,17 +507,7 @@ export default function RegisterPage() {
     scrollRef.current?.scrollTo({ top: 0 });
   }, [step]);
 
-  // ✅ warmup to start EC2 via API Gateway/Lambda (safe if endpoint doesn't exist)
-  useEffect(() => {
-    (async () => {
-      try {
-        console.log("🔥 Register warmup via API_BASE:", API_BASE);
-        await apiFetch("/warmup", { method: "GET" });
-      } catch (e) {
-        console.warn("⚠️ Register warmup failed (safe):", e);
-      }
-    })();
-  }, []);
+
 
   // ---- form state ----
   const [form, setForm] = useState({
