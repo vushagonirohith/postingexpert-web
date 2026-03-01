@@ -7,10 +7,62 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { getToken, clearAuth } from "src/lib/auth";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
-const PROFILE_GET_PATH = "/user/profile";
+// ✅ Same gateway as the rest of the app
+const API_BASE =
+  process.env.NEXT_PUBLIC_GATEWAY_BASE_URL ||
+  process.env.NEXT_PUBLIC_LAMBDA_URL ||
+  "https://aomkmgl9zj.execute-api.ap-south-1.amazonaws.com/prod";
+
+const BILLING_API = process.env.NEXT_PUBLIC_BILLING_API_URL || "";
+
+const PROFILE_GET_PATH    = "/user/profile";
 const PROFILE_UPDATE_PATH = "/user/profile";
 const SUBSCRIPTION_STATUS_PATH = "/billing/subscription";
+
+type ProfileData = {
+  name?:               string;
+  email?:              string;
+  username?:           string;
+  phone?:              string;
+  brand_name?:         string;
+  businessType?:       string;
+  website?:            string;
+  city?:               string;
+  tone?:               string;
+  goals?:              string;
+  frequency?:          string;
+  post_schedule_time?: string;
+  contact_details?:    string;
+  [k: string]:         any;
+};
+
+
+
+// Helper: unwrap Lambda proxy response and normalise profile shape
+function unwrapProfile(raw: any): ProfileData {
+  // unwrap Lambda proxy { statusCode, body: "json-string" }
+  let data = raw;
+  if (data?.body && typeof data.body === "string") {
+    try { data = JSON.parse(data.body); } catch {}
+  }
+  // profile can be at data.user | data.profile | data itself
+  const p = data?.user || data?.profile || data || {};
+  return {
+    name:               p.name              ?? p.full_name ?? "",
+    email:              p.email             ?? "",
+    username:           p.username          ?? "",
+    phone:              p.phone             ?? p.contact_details ?? "",
+    brand_name:         p.brand_name        ?? p.business_name ?? p.brandName ?? "",
+    businessType:       p.businessType      ?? p.business_type ?? p.industry ?? "",
+    website:            p.website           ?? "",
+    city:               p.city              ?? "",
+    tone:               p.tone              ?? "",
+    goals:              p.goals             ?? "",
+    frequency:          p.frequency         ?? p.posting_frequency ?? "",
+    post_schedule_time: p.post_schedule_time ?? p.scheduled_time ?? "",
+    contact_details:    p.contact_details   ?? "",
+  };
+}
 
 function cn(...xs: Array<string | false | undefined | null>) {
   return xs.filter(Boolean).join(" ");
@@ -158,19 +210,7 @@ function DeleteDataCard() {
 /* Types                                                           */
 /* ─────────────────────────────────────────────────────────────── */
 
-type ProfileData = {
-  full_name?: string;
-  email?: string;
-  phone?: string;
-  business_name?: string;
-  industry?: string;
-  role?: string;
-  website?: string;
-  city?: string;
-  target_audience?: string;
-  goals?: string;
-  posting_frequency?: string;
-};
+
 
 type SubscriptionData = {
   status?: "active" | "inactive" | "canceled" | "past_due" | "trial" | "expired" | string;
@@ -244,9 +284,9 @@ function ProfileCard({
         return;
       }
 
-      const profile = (json?.profile ?? json) as ProfileData;
-      setData(profile || {});
-      if (!editingRef.current) setDraft(profile || {});
+      const profile = unwrapProfile(json);
+      setData(profile);
+      if (!editingRef.current) setDraft(profile);
     } catch (e: any) {
       setMsg({ type: "err", text: e?.message || "Failed to fetch profile" });
     } finally {
@@ -278,7 +318,20 @@ function ProfileCard({
           "Content-Type": "application/json",
           Authorization:  `Bearer ${token}`,
         },
-        body: JSON.stringify({ profile: draft }),
+        body: JSON.stringify({
+          profile: {
+            name:               draft.name,
+            phone:              draft.phone,
+            brand_name:         draft.brand_name,
+            businessType:       draft.businessType,
+            website:            draft.website,
+            city:               draft.city,
+            tone:               draft.tone,
+            goals:              draft.goals,
+            frequency:          draft.frequency,
+            post_schedule_time: draft.post_schedule_time,
+          }
+        }),
       });
 
       const json = await res.json().catch(() => ({}));
@@ -288,9 +341,11 @@ function ProfileCard({
         return;
       }
 
-      const updated = (json?.profile ?? json) as ProfileData;
-      setData(updated || draft);
-      setDraft(updated || draft);
+      const updated = unwrapProfile(json);
+      // merge — keep email/username from original data (read-only)
+      const merged = { ...draft, ...updated, email: data.email, username: data.username };
+      setData(merged);
+      setDraft(merged);
       setEdit(false);
       setMsg({ type: "ok", text: "Profile updated successfully." });
     } catch (e: any) {
@@ -383,8 +438,8 @@ function ProfileCard({
           <div className="mt-4 grid grid-cols-1 gap-4">
             <Field
               label="Full name"
-              value={edit ? draft.full_name : data.full_name}
-              onChange={(v) => setDraft((d) => ({ ...d, full_name: v }))}
+              value={edit ? draft.name : data.name}
+              onChange={(v) => setDraft((d) => ({ ...d, name: v }))}
               placeholder="Your name"
               disabled={!edit}
             />
@@ -409,24 +464,24 @@ function ProfileCard({
           <p className="text-xs font-semibold text-muted-foreground">Business details</p>
           <div className="mt-4 grid grid-cols-1 gap-4">
             <Field
-              label="Business name"
-              value={edit ? draft.business_name : data.business_name}
-              onChange={(v) => setDraft((d) => ({ ...d, business_name: v }))}
+              label="Brand name"
+              value={edit ? draft.brand_name : data.brand_name}
+              onChange={(v) => setDraft((d) => ({ ...d, brand_name: v }))}
               placeholder="Your brand/company"
               disabled={!edit}
             />
             <Field
-              label="Industry"
-              value={edit ? draft.industry : data.industry}
-              onChange={(v) => setDraft((d) => ({ ...d, industry: v }))}
+              label="Industry / Business type"
+              value={edit ? draft.businessType : data.businessType}
+              onChange={(v) => setDraft((d) => ({ ...d, businessType: v }))}
               placeholder="E.g. EdTech, SaaS, Agency"
               disabled={!edit}
             />
             <Field
-              label="Your role"
-              value={edit ? draft.role : data.role}
-              onChange={(v) => setDraft((d) => ({ ...d, role: v }))}
-              placeholder="Founder / Marketing / Creator"
+              label="Brand tone"
+              value={edit ? draft.tone : data.tone}
+              onChange={(v) => setDraft((d) => ({ ...d, tone: v }))}
+              placeholder="E.g. professional, friendly, bold"
               disabled={!edit}
             />
             <Field
@@ -444,10 +499,10 @@ function ProfileCard({
           <p className="text-xs font-semibold text-muted-foreground">Survey & preferences</p>
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <Field
-              label="Target audience"
-              value={edit ? draft.target_audience : data.target_audience}
-              onChange={(v) => setDraft((d) => ({ ...d, target_audience: v }))}
-              placeholder="Who do you want to reach?"
+              label="Contact details"
+              value={edit ? draft.contact_details : data.contact_details}
+              onChange={(v) => setDraft((d) => ({ ...d, contact_details: v }))}
+              placeholder="Phone / WhatsApp / contact info"
               disabled={!edit}
               multiline
             />
@@ -460,10 +515,17 @@ function ProfileCard({
               multiline
             />
             <Field
-              label="Posting frequency"
-              value={edit ? draft.posting_frequency : data.posting_frequency}
-              onChange={(v) => setDraft((d) => ({ ...d, posting_frequency: v }))}
+              label="Post frequency"
+              value={edit ? draft.frequency : data.frequency}
+              onChange={(v) => setDraft((d) => ({ ...d, frequency: v }))}
               placeholder="E.g. 3x/week"
+              disabled={!edit}
+            />
+            <Field
+              label="Post schedule time"
+              value={edit ? draft.post_schedule_time : data.post_schedule_time}
+              onChange={(v) => setDraft((d) => ({ ...d, post_schedule_time: v }))}
+              placeholder="E.g. 10:00 AM"
               disabled={!edit}
             />
           </div>
@@ -526,16 +588,22 @@ function SubscriptionCard({
     if (!token)   { setLoading(false); return; }
 
     try {
-      const res  = await fetch(`${API_BASE}${SUBSCRIPTION_STATUS_PATH}`, {
+      // Use billing API if configured, fallback to main gateway
+      const subBase = BILLING_API || API_BASE;
+      const res  = await fetch(`${subBase}${SUBSCRIPTION_STATUS_PATH}`, {
         method:  "GET",
         headers: { Authorization: `Bearer ${token}` },
       });
-      const json = await res.json().catch(() => ({}));
+      let json = await res.json().catch(() => ({}));
+      // unwrap Lambda proxy
+      if (json?.body && typeof json.body === "string") {
+        try { json = JSON.parse(json.body); } catch {}
+      }
       if (!res.ok) {
         setMsg({ type: "err", text: json?.error || "Failed to fetch subscription" });
         return;
       }
-      const subscription = (json?.subscription ?? json) as SubscriptionData;
+      const subscription = (json?.subscription ?? json?.data ?? json) as SubscriptionData;
       setSub(subscription || {});
     } catch (e: any) {
       setMsg({ type: "err", text: e?.message || "Failed to fetch subscription" });
