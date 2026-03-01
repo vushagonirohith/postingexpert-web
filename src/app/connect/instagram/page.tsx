@@ -34,7 +34,7 @@ const INSTAGRAM_SCOPES = [
   "instagram_basic",
   "instagram_content_publish",
   "business_management",
-].join(",");
+].join(" ");
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function InstagramConnect({
@@ -118,6 +118,7 @@ export default function InstagramConnect({
       `&state=${encodeURIComponent(appUser)}` +
       `&response_type=code` +
       `&scope=${encodeURIComponent(INSTAGRAM_SCOPES)}` +
+      `&auth_type=rerequest` +
       `&display=popup`;
 
     // Centered popup
