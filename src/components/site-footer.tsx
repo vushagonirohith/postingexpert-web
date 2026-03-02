@@ -26,6 +26,12 @@ export function SiteFooter() {
               Pricing
             </Link>
             <Link
+              href="/contact"
+              className="rounded-full px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              Contact
+            </Link>
+            <Link
               href="/login"
               className="rounded-full px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
@@ -33,24 +39,19 @@ export function SiteFooter() {
             </Link>
           </div>
         </div>
-            <div className="mt-8 flex flex-col gap-3 border-t border-border pt-6 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between">
-              <p>© {new Date().getFullYear()} PostingExpert. All rights reserved.</p>
-            <div className="flex gap-4">
-      <Link
-        href="/privacy-policy"
-        className="opacity-80 transition-colors hover:text-foreground hover:underline"
-      >
-        Privacy
-      </Link>
-
-      <Link
-        href="/privacy-policy"
-        className="opacity-80 transition-colors hover:text-foreground hover:underline"
-      >
-        Terms
-      </Link>
-    </div>
-
+        <div className="mt-8 flex flex-col gap-3 border-t border-border pt-6 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between">
+          <p>© {new Date().getFullYear()} iNikola Technologies. All rights reserved.</p>
+          <div className="flex gap-4">
+            <Link href="/privacy-policy" className="opacity-80 transition-colors hover:text-foreground hover:underline">
+              Privacy Policy
+            </Link>
+            <Link href="/terms" className="opacity-80 transition-colors hover:text-foreground hover:underline">
+              Terms & Conditions
+            </Link>
+            <Link href="/refund-policy" className="opacity-80 transition-colors hover:text-foreground hover:underline">
+              Refund Policy
+            </Link>
+          </div>
         </div>
       </div>
     </footer>
