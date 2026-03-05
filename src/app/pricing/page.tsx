@@ -195,6 +195,8 @@ export default function PricingPage() {
           body:    JSON.stringify({
             userId:    user.userId,
             promoCode: code.trim().toUpperCase(),
+              customerEmail: user.email,   // ← add this
+              customerName:  user.name, 
           }),
         });
         const data = await res.json();
